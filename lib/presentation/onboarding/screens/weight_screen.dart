@@ -26,7 +26,7 @@ class _WeightScreenState extends State<WeightScreen> {
   void initState() {
     super.initState();
     _weightController = TextEditingController(
-      text: widget.controller.data.weight?.toString() ?? '',
+      text: widget.controller.initialWeight?.toString() ?? '',
     );
   }
 
@@ -39,7 +39,7 @@ class _WeightScreenState extends State<WeightScreen> {
   void _handleNext() {
     final weight = double.tryParse(_weightController.text);
     if (weight != null && weight >= 30 && weight <= 300) {
-      widget.controller.data.weight = weight;
+      widget.controller.initialWeight = weight;
       widget.onNext();
     }
   }
@@ -90,4 +90,3 @@ class _WeightScreenState extends State<WeightScreen> {
     );
   }
 }
-

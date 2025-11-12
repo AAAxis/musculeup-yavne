@@ -1,138 +1,147 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:muscleup/presentation/workouts/manual_workout_builder_screen.dart';
+import 'package:muscleup/presentation/workouts/ai_workout_builder_screen.dart';
+import 'package:muscleup/presentation/workouts/exercise_library_screen.dart';
 
 class WorkoutsScreen extends StatelessWidget {
   const WorkoutsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Training Programs',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Choose your workout plan',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.grey[600],
-                ),
-          ),
-          const SizedBox(height: 24),
-
-          // Workout Programs
-          _buildWorkoutCard(
-            context,
-            icon: Icons.fitness_center,
-            title: 'Strength Training',
-            duration: '45-60 min',
-            level: 'Intermediate',
-            color: Colors.red,
-          ),
-          const SizedBox(height: 12),
-          _buildWorkoutCard(
-            context,
-            icon: Icons.directions_run,
-            title: 'Cardio Blast',
-            duration: '30-45 min',
-            level: 'All Levels',
-            color: Colors.orange,
-          ),
-          const SizedBox(height: 12),
-          _buildWorkoutCard(
-            context,
-            icon: Icons.self_improvement,
-            title: 'Flexibility & Yoga',
-            duration: '20-30 min',
-            level: 'Beginner',
-            color: Colors.purple,
-          ),
-          const SizedBox(height: 12),
-          _buildWorkoutCard(
-            context,
-            icon: Icons.sports_martial_arts,
-            title: 'HIIT',
-            duration: '20-30 min',
-            level: 'Advanced',
-            color: Colors.green,
-          ),
-        ],
+    return Directionality(
+      textDirection: ui.TextDirection.rtl,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Action Cards
+            _buildActionCard(
+              context,
+              id: 'manual',
+              title: 'בניית אימון ידנית',
+              description: 'צור אימונים מותאמים אישית על ידי בחירת תרגילים',
+              icon: Icons.fitness_center,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF10B981), Color(0xFF059669)],
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildActionCard(
+              context,
+              id: 'ai',
+              title: 'בניית אימון עם AI',
+              description: 'צור אימונים חכמים המבוססים על המטרות שלך',
+              icon: Icons.auto_awesome,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF8B5CF6), Color(0xFF2563EB)],
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildActionCard(
+              context,
+              id: 'library',
+              title: 'ספריית תרגילים',
+              description: 'עיין בתרגילים והגדר את ברירות המחדל שלך',
+              icon: Icons.library_books,
+              gradient: const LinearGradient(
+                colors: [Color(0xFFEC4899), Color(0xFFEF4444)],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildWorkoutCard(
+  Widget _buildActionCard(
     BuildContext context, {
-    required IconData icon,
+    required String id,
     required String title,
-    required String duration,
-    required String level,
-    required Color color,
+    required String description,
+    required IconData icon,
+    required Gradient gradient,
   }) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: () {
-          // TODO: Navigate to workout details
-        },
-        borderRadius: BorderRadius.circular(16),
+    // Extract the main color from the gradient for the icon
+    Color iconColor;
+    if (gradient is LinearGradient) {
+      iconColor = gradient.colors.first;
+    } else {
+      iconColor = Colors.green[600]!;
+    }
+
+    return InkWell(
+      onTap: () {
+        Widget screen;
+        switch (id) {
+          case 'manual':
+            screen = const ManualWorkoutBuilderScreen();
+            break;
+          case 'ai':
+            screen = const AIWorkoutBuilderScreen();
+            break;
+          case 'library':
+            screen = const ExerciseLibraryScreen();
+            break;
+          default:
+            return;
+        }
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => screen),
+        );
+      },
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(25),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: color.withAlpha(25),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 36),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+              Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 32,
+                    color: iconColor,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
                       title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.schedule, size: 16, color: Colors.grey[600]),
-                        const SizedBox(width: 4),
-                        Text(
-                          duration,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Colors.grey[600],
-                                  ),
-                        ),
-                        const SizedBox(width: 16),
-                        Icon(Icons.bar_chart, size: 16, color: Colors.grey[600]),
-                        const SizedBox(width: 4),
-                        Text(
-                          level,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Colors.grey[600],
-                                  ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.only(right: 48),
+                child: Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[400]
+                        : Colors.grey[600],
+                  ),
                 ),
               ),
-              Icon(Icons.play_circle_filled, color: color, size: 32),
             ],
           ),
         ),

@@ -1,0 +1,233 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
+import 'package:muscleup/data/services/firestore_service.dart';
+import 'package:muscleup/data/models/user_model.dart';
+import 'package:intl/intl.dart';
+import 'package:muscleup/presentation/home/widgets/welcome_header.dart';
+import 'package:muscleup/presentation/home/widgets/time_display.dart';
+import 'package:muscleup/presentation/home/widgets/coach_workouts_card.dart';
+import 'package:muscleup/presentation/home/widgets/quick_actions_card.dart';
+import 'package:muscleup/presentation/home/widgets/progress_card.dart';
+import 'package:muscleup/presentation/home/widgets/recent_workouts_card.dart';
+import 'package:muscleup/presentation/boost/boost_screen.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final _firestoreService = FirestoreService();
+  late String _currentTime;
+  late String _currentDate;
+  UserModel? _userData;
+  bool _isLoadingUser = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateTime();
+    _loadUserData();
+    // Update time every second
+    Future.delayed(const Duration(seconds: 1), _updateTimeLoop);
+  }
+
+  void _updateTime() {
+    final now = DateTime.now();
+    setState(() {
+      _currentTime = DateFormat('HH:mm').format(now);
+      _currentDate = DateFormat('EEEE, dd.MM.yyyy').format(now);
+    });
+  }
+
+  void _updateTimeLoop() {
+    if (mounted) {
+      _updateTime();
+      Future.delayed(const Duration(seconds: 1), _updateTimeLoop);
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) {
+      try {
+        final user = await _firestoreService.getUser(authState.user.uid);
+        if (mounted) {
+          setState(() {
+            _userData = user;
+            _isLoadingUser = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isLoadingUser = false;
+          });
+        }
+      }
+    }
+  }
+
+  void _navigateToBoostScreen() {
+    // Navigate to Boost screen (index 1 in main navigation)
+    // We'll use a simple navigation for now
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: const Text('בוסט')),
+          body: const BoostScreen(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: BlocBuilder<AuthBloc, AuthState>(
+        builder: (context, state) {
+          if (state is AuthAuthenticated) {
+            final user = state.user;
+            final displayName = user.displayName ?? 'משתמש';
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Welcome Header
+                  WelcomeHeader(displayName: displayName),
+                  const SizedBox(height: 24),
+
+                  // Time Display
+                  TimeDisplay(
+                    currentTime: _currentTime,
+                    currentDate: _currentDate,
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Coach Workouts Card
+                  const CoachWorkoutsCard(),
+                  const SizedBox(height: 24),
+
+                  // Two Column Layout
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth > 800) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  QuickActionsCard(
+                                    onWeightUpdateTap: () {
+                                      // TODO: Navigate to weight update
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text('עדכון משקל בקרוב!'),
+                                        ),
+                                      );
+                                    },
+                                    onAddMealTap: () {
+                                      // TODO: Navigate to add meal
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text('הוספת ארוחה בקרוב!'),
+                                        ),
+                                      );
+                                    },
+                                    onWaterDocTap: () {
+                                      // TODO: Navigate to water documentation
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text('תיעוד מים בקרוב!'),
+                                        ),
+                                      );
+                                    },
+                                    onProgressTrackingTap:
+                                        _navigateToBoostScreen,
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _isLoadingUser
+                                      ? const Center(
+                                          child: CircularProgressIndicator())
+                                      : ProgressCard(
+                                          user: _userData,
+                                          createdAt: _userData?.createdAt ??
+                                              DateTime.now(),
+                                        ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 24),
+                            const Expanded(
+                              child: RecentWorkoutsCard(),
+                            ),
+                          ],
+                        );
+                      } else {
+                        return Column(
+                          children: [
+                            QuickActionsCard(
+                              onWeightUpdateTap: () {
+                                // TODO: Navigate to weight update
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('עדכון משקל בקרוב!'),
+                                  ),
+                                );
+                              },
+                              onAddMealTap: () {
+                                // TODO: Navigate to add meal
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('הוספת ארוחה בקרוב!'),
+                                  ),
+                                );
+                              },
+                              onWaterDocTap: () {
+                                // TODO: Navigate to water documentation
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('תיעוד מים בקרוב!'),
+                                  ),
+                                );
+                              },
+                              onProgressTrackingTap: _navigateToBoostScreen,
+                            ),
+                            const SizedBox(height: 24),
+                            _isLoadingUser
+                                ? const Center(
+                                    child: CircularProgressIndicator())
+                                : ProgressCard(
+                                    user: _userData,
+                                    createdAt:
+                                        _userData?.createdAt ?? DateTime.now(),
+                                  ),
+                            const SizedBox(height: 24),
+                            const RecentWorkoutsCard(),
+                          ],
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return const Center(child: CircularProgressIndicator());
+        },
+      ),
+    );
+  }
+}

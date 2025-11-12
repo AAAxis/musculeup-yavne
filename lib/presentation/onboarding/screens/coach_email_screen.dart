@@ -25,7 +25,7 @@ class _CoachEmailScreenState extends State<CoachEmailScreen> {
   void initState() {
     super.initState();
     _coachEmailController = TextEditingController(
-      text: widget.controller.data.coachEmail ?? '',
+      text: widget.controller.coachEmail ?? '',
     );
   }
 
@@ -37,7 +37,7 @@ class _CoachEmailScreenState extends State<CoachEmailScreen> {
 
   void _handleNext() {
     if (_isValid) {
-      widget.controller.data.coachEmail = _coachEmailController.text.trim();
+      widget.controller.coachEmail = _coachEmailController.text.trim();
       widget.onNext();
     }
   }

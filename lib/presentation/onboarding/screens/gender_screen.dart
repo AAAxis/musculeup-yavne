@@ -24,14 +24,14 @@ class _GenderScreenState extends State<GenderScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedGender = widget.controller.data.gender;
+    _selectedGender = widget.controller.gender;
   }
 
   void _selectGender(String gender) {
     setState(() {
       _selectedGender = gender;
     });
-    widget.controller.data.gender = gender;
+    widget.controller.gender = gender;
     // Auto-advance after selection
     Future.delayed(const Duration(milliseconds: 300), () {
       widget.onNext();

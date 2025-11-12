@@ -5,22 +5,52 @@ import 'package:muscleup/firebase_options.dart';
 import 'package:muscleup/presentation/auth/login_screen.dart';
 import 'package:muscleup/presentation/navigation/main_navigation.dart';
 import 'package:muscleup/presentation/onboarding/onboarding_flow.dart';
+import 'package:muscleup/presentation/contract/contract_verification_screen.dart';
 import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
 import 'package:muscleup/core/di/service_locator.dart';
-import 'package:muscleup/data/services/firebase_auth_service.dart';
+import 'package:muscleup/data/services/firestore_service.dart';
+import 'package:muscleup/data/services/signature_migration_service.dart';
+import 'package:muscleup/data/models/user_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Initialize Firebase (with error handling for duplicate app)
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } catch (e) {
+    // If Firebase is already initialized, continue silently
+    if (e.toString().contains('duplicate-app')) {
+      print('Firebase already initialized, continuing...');
+    } else {
+      print('Firebase initialization error: $e');
+      rethrow;
+    }
+  }
 
   // Setup dependency injection
   setupServiceLocator();
 
+  // Run signature migration in background
+  _runSignatureMigration();
+
   runApp(const MyApp());
+}
+
+/// Run signature migration in background
+void _runSignatureMigration() {
+  Future.delayed(const Duration(seconds: 2), () async {
+    try {
+      final migrationService = getIt<SignatureMigrationService>();
+      await migrationService.migrateSignaturesToStorage();
+    } catch (e) {
+      print('❌ Background signature migration failed: $e');
+    }
+  });
 }
 
 class MyApp extends StatelessWidget {
@@ -216,9 +246,8 @@ class AuthWrapper extends StatelessWidget {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
         if (state is AuthAuthenticated) {
-          return FutureBuilder<bool>(
-            future:
-                getIt<FirebaseAuthService>().isProfileComplete(state.user.uid),
+          return FutureBuilder<UserModel?>(
+            future: FirestoreService().getUser(state.user.uid),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Scaffold(
@@ -228,11 +257,28 @@ class AuthWrapper extends StatelessWidget {
                 );
               }
 
-              if (snapshot.hasData && snapshot.data == true) {
-                return const MainNavigation();
-              } else {
+              final userModel = snapshot.data;
+
+              // If no user data, go to onboarding
+              if (userModel == null) {
                 return OnboardingFlow(firebaseUser: state.user);
               }
+
+              // If profile not complete, go to onboarding
+              if (!userModel.isProfileComplete) {
+                return OnboardingFlow(firebaseUser: state.user);
+              }
+
+              // If contract not signed, block access
+              if (!userModel.hasSignedContract) {
+                return ContractVerificationScreen(
+                  firebaseUser: state.user,
+                  userModel: userModel,
+                );
+              }
+
+              // All good, go to main app
+              return const MainNavigation();
             },
           );
         } else if (state is AuthUnauthenticated || state is AuthError) {

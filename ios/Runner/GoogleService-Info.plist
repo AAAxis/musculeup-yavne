@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>320921048765-firunu5homlkbdlhh83ch17ku543ebra.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.320921048765-firunu5homlkbdlhh83ch17ku543ebra</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>320921048765-vfh57tgli4d3i3qaovjtin3gaus1iued.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyDJUogFmXYUnPxyFehtj7l2lCQs5-vAklw</string>
+	<key>GCM_SENDER_ID</key>
+	<string>320921048765</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.theholylabs.muscleup</string>
+	<key>PROJECT_ID</key>
+	<string>muscule-up</string>
+	<key>STORAGE_BUCKET</key>
+	<string>muscule-up.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:320921048765:ios:adf3197a3b8f77c34a89d4</string>
+</dict>
+</plist>

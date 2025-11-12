@@ -26,7 +26,7 @@ class _HeightScreenState extends State<HeightScreen> {
   void initState() {
     super.initState();
     _heightController = TextEditingController(
-      text: widget.controller.data.height?.toString() ?? '',
+      text: widget.controller.height?.toString() ?? '',
     );
   }
 
@@ -39,7 +39,7 @@ class _HeightScreenState extends State<HeightScreen> {
   void _handleNext() {
     final height = double.tryParse(_heightController.text);
     if (height != null && height >= 100 && height <= 250) {
-      widget.controller.data.height = height;
+      widget.controller.height = height;
       widget.onNext();
     }
   }
@@ -90,4 +90,3 @@ class _HeightScreenState extends State<HeightScreen> {
     );
   }
 }
-

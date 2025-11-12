@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -79,7 +80,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       } catch (e) {
         if (mounted) {
-          _showError('Failed to load profile: $e');
+          _showError('שגיאה בטעינת הפרופיל: $e');
           setState(() {
             _isLoading = false;
           });
@@ -110,12 +111,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     if (_selectedGender == null) {
-      _showError('Please select your gender');
+      _showError('אנא בחר את המגדר שלך');
       return;
     }
 
     if (_selectedBirthDate == null) {
-      _showError('Please select your birth date');
+      _showError('אנא בחר את תאריך הלידה שלך');
       return;
     }
 
@@ -150,13 +151,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Profile updated successfully'),
+            content: Text('הפרופיל עודכן בהצלחה'),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
-      _showError('Failed to update profile: $e');
+      _showError('שגיאה בעדכון הפרופיל: $e');
       setState(() {
         _isSaving = false;
       });
@@ -179,293 +180,312 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('פרופיל'),
+          ),
+          body: const Center(child: CircularProgressIndicator()),
+        ),
+      );
     }
 
     if (_currentUser == null) {
-      return const Center(child: Text('Failed to load profile'));
+      return Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('פרופיל'),
+          ),
+          body: const Center(child: Text('שגיאה בטעינת הפרופיל')),
+        ),
+      );
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Profile Header
-            Center(
-              child: Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundImage: _currentUser!.photoUrl != null
-                        ? NetworkImage(_currentUser!.photoUrl!)
-                        : null,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primary.withAlpha(25),
-                    child: _currentUser!.photoUrl == null
-                        ? Icon(
-                            Icons.person,
-                            size: 60,
-                            color: Theme.of(context).colorScheme.primary,
-                          )
-                        : null,
+    return Directionality(
+      textDirection: ui.TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('ערוך פרופיל'),
+          actions: [
+            if (_isEditing)
+              TextButton(
+                onPressed: _isSaving
+                    ? null
+                    : () {
+                        setState(() {
+                          _isEditing = false;
+                          _loadUserData();
+                        });
+                      },
+                child: const Text('ביטול'),
+              ),
+            Padding(
+              padding: const EdgeInsets.only(left: 8.0),
+              child: _isSaving
+                  ? const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : IconButton(
+                      onPressed: () {
+                        if (_isEditing) {
+                          _saveProfile();
+                        } else {
+                          setState(() {
+                            _isEditing = true;
+                          });
+                        }
+                      },
+                      icon: Icon(_isEditing ? Icons.save : Icons.edit),
+                    ),
+            ),
+          ],
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Profile Header
+                Center(
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 60,
+                        backgroundImage: _currentUser!.photoUrl != null
+                            ? NetworkImage(_currentUser!.photoUrl!)
+                            : null,
+                        backgroundColor:
+                            Theme.of(context).colorScheme.primary.withAlpha(25),
+                        child: _currentUser!.photoUrl == null
+                            ? Icon(
+                                Icons.person,
+                                size: 60,
+                                color: Theme.of(context).colorScheme.primary,
+                              )
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        child: CircleAvatar(
+                          radius: 20,
+                          backgroundColor:
+                              Theme.of(context).colorScheme.primary,
+                          child: const Icon(
+                            Icons.camera_alt,
+                            size: 20,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      child: const Icon(
-                        Icons.camera_alt,
-                        size: 20,
-                        color: Colors.white,
+                ),
+                const SizedBox(height: 32),
+
+                // Personal Information Section
+                Text(
+                  'מידע אישי',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 16),
+
+                // Full Name
+                TextFormField(
+                  controller: _nameController,
+                  enabled: _isEditing,
+                  decoration: const InputDecoration(
+                    labelText: 'שם מלא',
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'אנא הזן את שמך';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Email (Read-only)
+                TextFormField(
+                  initialValue: _currentUser!.email,
+                  enabled: false,
+                  decoration: const InputDecoration(
+                    labelText: 'אימייל',
+                    prefixIcon: Icon(Icons.email),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Gender
+                DropdownButtonFormField<String>(
+                  value: _selectedGender,
+                  decoration: const InputDecoration(
+                    labelText: 'מגדר',
+                    prefixIcon: Icon(Icons.wc),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'Male', child: Text('זכר')),
+                    DropdownMenuItem(value: 'Female', child: Text('נקבה')),
+                  ],
+                  onChanged: _isEditing
+                      ? (value) {
+                          setState(() {
+                            _selectedGender = value;
+                          });
+                        }
+                      : null,
+                ),
+                const SizedBox(height: 16),
+
+                // Birth Date
+                InkWell(
+                  onTap: _selectBirthDate,
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'תאריך לידה',
+                      prefixIcon: Icon(Icons.calendar_today),
+                    ),
+                    child: Text(
+                      _selectedBirthDate == null
+                          ? 'בחר תאריך'
+                          : _formatDate(_selectedBirthDate!),
+                      style: TextStyle(
+                        color: _selectedBirthDate == null
+                            ? Colors.grey[600]
+                            : Colors.black87,
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Edit/Save Button
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (_isEditing)
-                  TextButton(
-                    onPressed: _isSaving
-                        ? null
-                        : () {
-                            setState(() {
-                              _isEditing = false;
-                              _loadUserData();
-                            });
-                          },
-                    child: const Text('Cancel'),
-                  ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _isSaving
-                      ? null
-                      : () {
-                          if (_isEditing) {
-                            _saveProfile();
-                          } else {
-                            setState(() {
-                              _isEditing = true;
-                            });
-                          }
-                        },
-                  icon: _isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : Icon(_isEditing ? Icons.save : Icons.edit),
-                  label: Text(_isEditing ? 'Save' : 'Edit Profile'),
                 ),
-              ],
-            ),
-            const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-            // Personal Information Section
-            Text(
-              'Personal Information',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                // Height
+                TextFormField(
+                  controller: _heightController,
+                  enabled: _isEditing,
+                  decoration: const InputDecoration(
+                    labelText: 'גובה (ס"מ)',
+                    prefixIcon: Icon(Icons.height),
                   ),
-            ),
-            const SizedBox(height: 16),
-
-            // Full Name
-            TextFormField(
-              controller: _nameController,
-              enabled: _isEditing,
-              decoration: const InputDecoration(
-                labelText: 'Full Name',
-                prefixIcon: Icon(Icons.person),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter your name';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Email (Read-only)
-            TextFormField(
-              initialValue: _currentUser!.email,
-              enabled: false,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                prefixIcon: Icon(Icons.email),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Gender
-            DropdownButtonFormField<String>(
-              value: _selectedGender,
-              decoration: const InputDecoration(
-                labelText: 'Gender',
-                prefixIcon: Icon(Icons.wc),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'Male', child: Text('Male')),
-                DropdownMenuItem(value: 'Female', child: Text('Female')),
-              ],
-              onChanged: _isEditing
-                  ? (value) {
-                      setState(() {
-                        _selectedGender = value;
-                      });
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                        RegExp(r'^\d+\.?\d{0,1}')),
+                  ],
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'אנא הזן את הגובה שלך';
                     }
-                  : null,
-            ),
-            const SizedBox(height: 16),
-
-            // Birth Date
-            InkWell(
-              onTap: _selectBirthDate,
-              child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Birth Date',
-                  prefixIcon: Icon(Icons.calendar_today),
+                    final height = double.tryParse(value);
+                    if (height == null || height < 100 || height > 250) {
+                      return 'אנא הזן גובה תקף (100-250 ס"מ)';
+                    }
+                    return null;
+                  },
                 ),
-                child: Text(
-                  _selectedBirthDate == null
-                      ? 'Select date'
-                      : _formatDate(_selectedBirthDate!),
-                  style: TextStyle(
-                    color: _selectedBirthDate == null
-                        ? Colors.grey[600]
-                        : Colors.black87,
+                const SizedBox(height: 16),
+
+                // Weight
+                TextFormField(
+                  controller: _weightController,
+                  enabled: _isEditing,
+                  decoration: const InputDecoration(
+                    labelText: 'משקל (ק"ג)',
+                    prefixIcon: Icon(Icons.monitor_weight),
                   ),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                        RegExp(r'^\d+\.?\d{0,1}')),
+                  ],
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'אנא הזן את המשקל שלך';
+                    }
+                    final weight = double.tryParse(value);
+                    if (weight == null || weight < 30 || weight > 300) {
+                      return 'אנא הזן משקל תקף (30-300 ק"ג)';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
+                const SizedBox(height: 32),
 
-            // Height
-            TextFormField(
-              controller: _heightController,
-              enabled: _isEditing,
-              decoration: const InputDecoration(
-                labelText: 'Height (cm)',
-                prefixIcon: Icon(Icons.height),
-              ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,1}')),
-              ],
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your height';
-                }
-                final height = double.tryParse(value);
-                if (height == null || height < 100 || height > 250) {
-                  return 'Please enter a valid height (100-250 cm)';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
+                // Coach Details Section
+                Text(
+                  'פרטי המאמן',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 16),
 
-            // Weight
-            TextFormField(
-              controller: _weightController,
-              enabled: _isEditing,
-              decoration: const InputDecoration(
-                labelText: 'Weight (kg)',
-                prefixIcon: Icon(Icons.monitor_weight),
-              ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,1}')),
-              ],
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your weight';
-                }
-                final weight = double.tryParse(value);
-                if (weight == null || weight < 30 || weight > 300) {
-                  return 'Please enter a valid weight (30-300 kg)';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 32),
-
-            // Coach Details Section
-            Text(
-              'Coach Details',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                // Coach Name
+                TextFormField(
+                  controller: _coachNameController,
+                  enabled: _isEditing,
+                  decoration: const InputDecoration(
+                    labelText: 'שם המאמן',
+                    prefixIcon: Icon(Icons.person_pin),
                   ),
-            ),
-            const SizedBox(height: 16),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'אנא הזן שם מאמן';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
 
-            // Coach Name
-            TextFormField(
-              controller: _coachNameController,
-              enabled: _isEditing,
-              decoration: const InputDecoration(
-                labelText: 'Coach Name',
-                prefixIcon: Icon(Icons.person_pin),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter coach name';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
+                // Coach Email
+                TextFormField(
+                  controller: _coachEmailController,
+                  enabled: _isEditing,
+                  decoration: const InputDecoration(
+                    labelText: 'אימייל המאמן',
+                    prefixIcon: Icon(Icons.email),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'אנא הזן אימייל מאמן';
+                    }
+                    if (!value.contains('@')) {
+                      return 'אנא הזן אימייל תקף';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
 
-            // Coach Email
-            TextFormField(
-              controller: _coachEmailController,
-              enabled: _isEditing,
-              decoration: const InputDecoration(
-                labelText: 'Coach Email',
-                prefixIcon: Icon(Icons.email),
-              ),
-              keyboardType: TextInputType.emailAddress,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter coach email';
-                }
-                if (!value.contains('@')) {
-                  return 'Please enter a valid email';
-                }
-                return null;
-              },
+                // Coach Phone
+                TextFormField(
+                  controller: _coachPhoneController,
+                  enabled: _isEditing,
+                  decoration: const InputDecoration(
+                    labelText: 'טלפון המאמן',
+                    prefixIcon: Icon(Icons.phone),
+                    hintText: 'אופציונלי',
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 32),
+              ],
             ),
-            const SizedBox(height: 16),
-
-            // Coach Phone
-            TextFormField(
-              controller: _coachPhoneController,
-              enabled: _isEditing,
-              decoration: const InputDecoration(
-                labelText: 'Coach Phone',
-                prefixIcon: Icon(Icons.phone),
-                hintText: 'Optional',
-              ),
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 32),
-          ],
+          ),
         ),
       ),
     );

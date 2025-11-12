@@ -24,7 +24,7 @@ class _BirthdateScreenState extends State<BirthdateScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedDate = widget.controller.data.birthDate;
+    _selectedDate = widget.controller.birthDate;
   }
 
   Future<void> _selectDate() async {
@@ -38,7 +38,7 @@ class _BirthdateScreenState extends State<BirthdateScreen> {
       setState(() {
         _selectedDate = picked;
       });
-      widget.controller.data.birthDate = picked;
+      widget.controller.birthDate = picked;
     }
   }
 
@@ -89,4 +89,3 @@ class _BirthdateScreenState extends State<BirthdateScreen> {
     );
   }
 }
-

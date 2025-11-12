@@ -25,7 +25,7 @@ class _CoachNameScreenState extends State<CoachNameScreen> {
   void initState() {
     super.initState();
     _coachNameController = TextEditingController(
-      text: widget.controller.data.coachName ?? '',
+      text: widget.controller.coachName ?? '',
     );
   }
 
@@ -37,7 +37,7 @@ class _CoachNameScreenState extends State<CoachNameScreen> {
 
   void _handleNext() {
     if (_coachNameController.text.trim().isNotEmpty) {
-      widget.controller.data.coachName = _coachNameController.text.trim();
+      widget.controller.coachName = _coachNameController.text.trim();
       widget.onNext();
     }
   }
@@ -68,4 +68,3 @@ class _CoachNameScreenState extends State<CoachNameScreen> {
     );
   }
 }
-

@@ -1,43 +1,41 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
-class OnboardingData {
-  String? name;
+class OnboardingController {
+  final User firebaseUser;
+
+  // Personal info
+  String name;
   String? gender;
   DateTime? birthDate;
+  
+  // Physical info
   double? height;
-  double? weight;
+  double? initialWeight;
+  
+  // Coach info
   String? coachName;
   String? coachEmail;
   String? coachPhone;
-
-  OnboardingData({
-    this.name,
-    this.gender,
-    this.birthDate,
-    this.height,
-    this.weight,
-    this.coachName,
-    this.coachEmail,
-    this.coachPhone,
-  });
-}
-
-class OnboardingController {
-  final User firebaseUser;
-  final OnboardingData data;
+  
+  // Contract info
+  String? contractFullName;
+  String? contractSignatureBase64; // Store base64 temporarily
+  String? contractSignatureUrl; // Will be set after upload
 
   OnboardingController({
     required this.firebaseUser,
-  }) : data = OnboardingData(name: firebaseUser.displayName);
+  }) : name = firebaseUser.displayName ?? '';
 
   bool get isComplete {
-    return data.name != null &&
-        data.gender != null &&
-        data.birthDate != null &&
-        data.height != null &&
-        data.weight != null &&
-        data.coachName != null &&
-        data.coachEmail != null;
+    return name.isNotEmpty &&
+        gender != null &&
+        birthDate != null &&
+        height != null &&
+        initialWeight != null &&
+        coachName != null &&
+        coachEmail != null &&
+        contractFullName != null &&
+        contractSignatureBase64 != null;
   }
 }
 

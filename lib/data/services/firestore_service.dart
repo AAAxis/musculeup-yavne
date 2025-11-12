@@ -36,6 +36,18 @@ class FirestoreService {
     }
   }
 
+  // Update user fields
+  Future<void> updateUser(String uid, Map<String, dynamic> data) async {
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        ...data,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw Exception('Failed to update user: $e');
+    }
+  }
+
   // Update last login
   Future<void> updateLastLogin(String uid) async {
     try {

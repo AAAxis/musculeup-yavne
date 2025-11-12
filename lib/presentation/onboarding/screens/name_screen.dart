@@ -23,7 +23,7 @@ class _NameScreenState extends State<NameScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(
-      text: widget.controller.data.name ?? '',
+      text: widget.controller.name,
     );
   }
 
@@ -35,7 +35,7 @@ class _NameScreenState extends State<NameScreen> {
 
   void _handleNext() {
     if (_nameController.text.trim().isNotEmpty) {
-      widget.controller.data.name = _nameController.text.trim();
+      widget.controller.name = _nameController.text.trim();
       widget.onNext();
     }
   }
@@ -65,4 +65,3 @@ class _NameScreenState extends State<NameScreen> {
     );
   }
 }
-

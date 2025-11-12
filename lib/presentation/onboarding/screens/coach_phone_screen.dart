@@ -25,7 +25,7 @@ class _CoachPhoneScreenState extends State<CoachPhoneScreen> {
   void initState() {
     super.initState();
     _coachPhoneController = TextEditingController(
-      text: widget.controller.data.coachPhone ?? '',
+      text: widget.controller.coachPhone ?? '',
     );
   }
 
@@ -37,12 +37,12 @@ class _CoachPhoneScreenState extends State<CoachPhoneScreen> {
 
   void _handleNext() {
     final phone = _coachPhoneController.text.trim();
-    widget.controller.data.coachPhone = phone.isEmpty ? null : phone;
+    widget.controller.coachPhone = phone.isEmpty ? null : phone;
     widget.onNext();
   }
 
   void _handleSkip() {
-    widget.controller.data.coachPhone = null;
+    widget.controller.coachPhone = null;
     widget.onNext();
   }
 
@@ -55,9 +55,8 @@ class _CoachPhoneScreenState extends State<CoachPhoneScreen> {
       subtitle: 'You can skip this if you don\'t have it',
       onBack: widget.onBack,
       onNext: _handleNext,
-      nextButtonText: _coachPhoneController.text.trim().isEmpty
-          ? 'Skip'
-          : 'Continue',
+      nextButtonText:
+          _coachPhoneController.text.trim().isEmpty ? 'Skip' : 'Continue',
       child: Column(
         children: [
           TextField(
@@ -83,4 +82,3 @@ class _CoachPhoneScreenState extends State<CoachPhoneScreen> {
     );
   }
 }
-
