@@ -108,6 +108,20 @@ class UserModel {
     };
   }
 
+  // Helper method to safely parse timestamp fields
+  static DateTime? _parseTimestamp(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
   // Create from Firestore document
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -124,9 +138,9 @@ class UserModel {
       coachPhone: data['coach_phone'],
       role: data['role'],
       status: data['status'],
-      createdAt: (data['created_at'] as Timestamp?)?.toDate(),
-      updatedAt: (data['updated_at'] as Timestamp?)?.toDate(),
-      lastLogin: (data['last_login'] as Timestamp?)?.toDate(),
+      createdAt: _parseTimestamp(data['created_at']),
+      updatedAt: _parseTimestamp(data['updated_at']),
+      lastLogin: _parseTimestamp(data['last_login']),
       notificationsEnabled: data['notifications_enabled'] as bool?,
       emailNotifications: data['email_notifications'] as bool?,
       pushNotifications: data['push_notifications'] as bool?,
@@ -134,7 +148,7 @@ class UserModel {
       contractSignatureBase64: data['contract_signature_base64'],
       contractSignatureUrl: data['contract_signature_url'],
       contractCommitments: (data['contract_commitments'] as List<dynamic>?)?.cast<String>(),
-      contractSignedAt: (data['contract_signed_at'] as Timestamp?)?.toDate(),
+      contractSignedAt: _parseTimestamp(data['contract_signed_at']),
     );
   }
 

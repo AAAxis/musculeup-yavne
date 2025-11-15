@@ -116,10 +116,20 @@ class FirestoreService {
           .where('role', whereIn: ['admin', 'coach'])
           .get();
       
-      return querySnapshot.docs
-          .map((doc) => UserModel.fromFirestore(doc))
-          .where((user) => user.email.isNotEmpty && user.name.isNotEmpty)
-          .toList();
+      final coaches = <UserModel>[];
+      for (final doc in querySnapshot.docs) {
+        try {
+          final user = UserModel.fromFirestore(doc);
+          if (user.email.isNotEmpty && user.name.isNotEmpty) {
+            coaches.add(user);
+          }
+        } catch (e) {
+          print('Error parsing coach document ${doc.id}: $e');
+          // Continue processing other documents
+        }
+      }
+      
+      return coaches;
     } catch (e) {
       throw Exception('Failed to get coaches: $e');
     }
