@@ -36,26 +36,55 @@ class FirestoreService {
     }
   }
 
-  // Update user fields
+  // Update user fields (creates document if it doesn't exist)
   Future<void> updateUser(String uid, Map<String, dynamic> data) async {
     try {
-      await _firestore.collection('users').doc(uid).update({
-        ...data,
-        'updated_at': FieldValue.serverTimestamp(),
-      });
+      final docRef = _firestore.collection('users').doc(uid);
+      // Check if document exists first
+      final doc = await docRef.get();
+      
+      if (doc.exists) {
+        // Document exists, use update
+        await docRef.update({
+          ...data,
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Document doesn't exist, use set with merge
+        await docRef.set({
+          ...data,
+          'updated_at': FieldValue.serverTimestamp(),
+          'created_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
     } catch (e) {
       throw Exception('Failed to update user: $e');
     }
   }
 
-  // Update last login
+  // Update last login (only if document exists)
   Future<void> updateLastLogin(String uid) async {
     try {
-      await _firestore.collection('users').doc(uid).update({
-        'last_login': FieldValue.serverTimestamp(),
-      });
+      final docRef = _firestore.collection('users').doc(uid);
+      // Check if document exists first
+      final doc = await docRef.get();
+      
+      if (doc.exists) {
+        // Document exists, use update
+        try {
+          await docRef.update({
+            'last_login': FieldValue.serverTimestamp(),
+          });
+        } catch (updateError) {
+          // If update fails (e.g., document was deleted), silently ignore
+          // This can happen in race conditions
+          print('Warning: Could not update last_login for user $uid: $updateError');
+        }
+      }
+      // If document doesn't exist, silently ignore - it will be created during onboarding
     } catch (e) {
-      // Ignore error if document doesn't exist
+      // Silently ignore all errors - user document will be created during onboarding
+      // This prevents errors for new users who haven't completed onboarding yet
     }
   }
 
@@ -77,6 +106,23 @@ class FirestoreService {
   Future<bool> isProfileComplete(String uid) async {
     final user = await getUser(uid);
     return user?.isProfileComplete ?? false;
+  }
+
+  // Get all coaches/admins (users with role 'admin' or 'coach')
+  Future<List<UserModel>> getCoaches() async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('users')
+          .where('role', whereIn: ['admin', 'coach'])
+          .get();
+      
+      return querySnapshot.docs
+          .map((doc) => UserModel.fromFirestore(doc))
+          .where((user) => user.email.isNotEmpty && user.name.isNotEmpty)
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get coaches: $e');
+    }
   }
 }
 

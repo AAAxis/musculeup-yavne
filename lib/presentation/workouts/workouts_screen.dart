@@ -11,11 +11,13 @@ class WorkoutsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             // Action Cards
             _buildActionCard(
               context,
@@ -37,6 +39,7 @@ class WorkoutsScreen extends StatelessWidget {
               gradient: const LinearGradient(
                 colors: [Color(0xFF8B5CF6), Color(0xFF2563EB)],
               ),
+              showDoubleIcon: true,
             ),
             const SizedBox(height: 16),
             _buildActionCard(
@@ -51,6 +54,7 @@ class WorkoutsScreen extends StatelessWidget {
             ),
           ],
         ),
+        ),
       ),
     );
   }
@@ -62,6 +66,7 @@ class WorkoutsScreen extends StatelessWidget {
     required String description,
     required IconData icon,
     required Gradient gradient,
+    bool showDoubleIcon = false,
   }) {
     // Extract the main color from the gradient for the icon
     Color iconColor;
@@ -112,21 +117,42 @@ class WorkoutsScreen extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(
-                    icon,
-                    size: 32,
-                    color: iconColor,
-                  ),
-                  const SizedBox(width: 16),
                   Expanded(
                     child: Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
+                        color: Colors.red[700],
+                        decoration: TextDecoration.underline,
+                        decorationColor: Colors.yellow[600],
+                        decorationThickness: 2.5,
                       ),
                     ),
                   ),
+                  const SizedBox(width: 16),
+                  showDoubleIcon
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              icon,
+                              size: 28,
+                              color: iconColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              icon,
+                              size: 28,
+                              color: iconColor,
+                            ),
+                          ],
+                        )
+                      : Icon(
+                          icon,
+                          size: 32,
+                          color: iconColor,
+                        ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -136,9 +162,10 @@ class WorkoutsScreen extends StatelessWidget {
                   description,
                   style: TextStyle(
                     fontSize: 14,
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.grey[400]
-                        : Colors.grey[600],
+                    color: Colors.black87,
+                    decoration: TextDecoration.underline,
+                    decorationColor: Colors.yellow[600],
+                    decorationThickness: 2.5,
                   ),
                 ),
               ),
