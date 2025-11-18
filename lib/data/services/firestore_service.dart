@@ -134,5 +134,49 @@ class FirestoreService {
       throw Exception('Failed to get coaches: $e');
     }
   }
+
+  // Check if user has existing booster request
+  Future<bool> hasExistingBoosterRequest(String userEmail) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('coachNotifications')
+          .where('user_email', isEqualTo: userEmail)
+          .where('notification_type', isEqualTo: 'booster_request')
+          .where('is_read', isEqualTo: false)
+          .limit(1)
+          .get();
+      
+      return querySnapshot.docs.isNotEmpty;
+    } catch (e) {
+      throw Exception('Failed to check existing booster request: $e');
+    }
+  }
+
+  // Create coach notification (for booster requests, etc.)
+  Future<void> createCoachNotification({
+    required String userEmail,
+    required String userName,
+    required String coachEmail,
+    required String notificationType,
+    required String notificationTitle,
+    required String notificationMessage,
+    Map<String, dynamic>? notificationDetails,
+  }) async {
+    try {
+      await _firestore.collection('coachNotifications').add({
+        'user_email': userEmail,
+        'user_name': userName,
+        'coach_email': coachEmail,
+        'notification_type': notificationType,
+        'notification_title': notificationTitle,
+        'notification_message': notificationMessage,
+        if (notificationDetails != null) 'notification_details': notificationDetails,
+        'is_read': false,
+        'created_date': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw Exception('Failed to create coach notification: $e');
+    }
+  }
 }
 

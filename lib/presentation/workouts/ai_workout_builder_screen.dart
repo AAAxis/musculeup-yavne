@@ -28,6 +28,7 @@ class _AIWorkoutBuilderScreenState extends State<AIWorkoutBuilderScreen> {
   bool _isLoading = false;
   bool _isGenerating = false;
   bool _isGeneratingImage = false;
+  bool _isSaving = false;
   Map<String, dynamic>? _generatedWorkout;
   String? _errorMessage;
   UserModel? _user;
@@ -340,7 +341,11 @@ $userContext
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: Colors.white,
         appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
           title: const Text('בניית אימון עם AI'),
         ),
         body: _isLoading
@@ -867,6 +872,30 @@ $userContext
                                       })),
                                     ],
                                   ),
+                                const SizedBox(height: 24),
+
+                                // Save Workout Button
+                                ElevatedButton.icon(
+                                  onPressed: _isSaving ? null : _saveWorkout,
+                                  icon: _isSaving
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        )
+                                      : const Icon(Icons.save),
+                                  label: Text(_isSaving ? 'שומר...' : 'שמור אימון לרשימה שלי'),
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 18),
+                                    minimumSize: const Size(double.infinity, 50),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -877,6 +906,92 @@ $userContext
               ),
       ),
     );
+  }
+
+  Future<void> _saveWorkout() async {
+    if (_generatedWorkout == null || _user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('אין אימון לשמירה'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is! AuthAuthenticated) return;
+
+      final now = DateTime.now();
+      final dateString = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      // Map exercises to workout format
+      final allExercises = (_generatedWorkout!['exercises'] as List).map((ex) {
+        final exercise = ex as Map<String, dynamic>;
+        final setsCount = exercise['sets'] ?? 3;
+        return {
+          'name': exercise['name'] ?? '',
+          'category': exercise['category'] ?? 'כוח',
+          'sets': List.generate(setsCount, (index) => {
+            'repetitions': exercise['reps'] ?? 0,
+            'weight': exercise['weight_suggestion'] ?? 0,
+            'duration_seconds': exercise['duration_seconds'] ?? 0,
+            'completed': false,
+          }),
+          'completed': false,
+          'notes': exercise['notes'] ?? '',
+          'video_url': '',
+        };
+      }).toList();
+
+      final workoutData = {
+        'date': dateString,
+        'workout_type': 'אימון AI',
+        'status': 'פעיל',
+        'start_time': now.toIso8601String(),
+        'warmup_description': 'חימום אירובי קל 5-10 דקות, מתיחות דינמיות.',
+        'warmup_duration': 10,
+        'warmup_completed': false,
+        'exercises': allExercises,
+        'notes': _notesController.text.trim(),
+        'total_duration': _generatedWorkout!['estimated_duration'] ?? 60,
+        'created_by': _user!.email,
+        'coach_workout_title': _generatedWorkout!['workout_title'],
+        'coach_workout_description': _generatedWorkout!['workout_description'],
+      };
+
+      await _firestore.collection('workouts').add(workoutData);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('האימון נשמר בהצלחה! ניתן למצוא אותו בהיסטוריית האימונים'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה בשמירת האימון: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
   }
 
   Widget _buildExerciseInfo(String label, String value) {

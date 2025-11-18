@@ -1,7 +1,10 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
+import 'package:muscleup/data/services/firestore_service.dart';
+import 'package:muscleup/data/models/user_model.dart';
 
 class ManualWorkoutBuilderScreen extends StatefulWidget {
   const ManualWorkoutBuilderScreen({super.key});
@@ -17,11 +20,45 @@ class _ManualWorkoutBuilderScreenState
   final _workoutNameController = TextEditingController();
   final _notesController = TextEditingController();
 
+  final _firestoreService = FirestoreService();
+  final _firestore = FirebaseFirestore.instance;
+  UserModel? _user;
+
   bool _isLoading = false;
   bool _isSaving = false;
 
-  // TODO: Load from Firebase
   final List<Map<String, dynamic>> _selectedExercises = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is AuthAuthenticated) {
+        final user = await _firestoreService.getUser(authState.user.uid);
+        if (mounted) {
+          setState(() {
+            _user = user;
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -45,6 +82,16 @@ class _ManualWorkoutBuilderScreenState
       return;
     }
 
+    if (_user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('טוען נתוני משתמש...'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isSaving = true;
     });
@@ -53,19 +100,51 @@ class _ManualWorkoutBuilderScreenState
       final authState = context.read<AuthBloc>().state;
       if (authState is! AuthAuthenticated) return;
 
-      // TODO: Save workout to Firebase
-      // final workout = {
-      //   'name': _workoutNameController.text.trim(),
-      //   'notes': _notesController.text.trim(),
-      //   'exercises': _selectedExercises,
-      //   'created_at': FieldValue.serverTimestamp(),
-      // };
+      final now = DateTime.now();
+      final dateString = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      // Map exercises to workout format
+      final allExercises = _selectedExercises.map((ex) {
+        final setsCount = ex['sets'] ?? 3;
+        return {
+          'name': ex['name'] ?? '',
+          'category': ex['category'] ?? 'כוח',
+          'sets': List.generate(setsCount, (index) => {
+            'repetitions': ex['reps'] ?? 0,
+            'weight': ex['weight'] ?? 0,
+            'duration_seconds': ex['duration_seconds'] ?? 0,
+            'completed': false,
+          }),
+          'completed': false,
+          'notes': ex['notes'] ?? '',
+          'video_url': '',
+        };
+      }).toList();
+
+      final workoutData = {
+        'date': dateString,
+        'workout_type': 'אימון ידני',
+        'status': 'פעיל',
+        'start_time': now.toIso8601String(),
+        'warmup_description': 'חימום כללי - 10 דקות',
+        'warmup_duration': 10,
+        'warmup_completed': false,
+        'exercises': allExercises,
+        'notes': _notesController.text.trim(),
+        'total_duration': 60, // Default duration
+        'created_by': _user!.email,
+        'coach_workout_title': _workoutNameController.text.trim(),
+        'coach_workout_description': _notesController.text.trim(),
+      };
+
+      await _firestore.collection('workouts').add(workoutData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('האימון נשמר בהצלחה'),
+            content: Text('האימון נשמר בהצלחה! ניתן למצוא אותו בהיסטוריית האימונים'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
           ),
         );
         Navigator.pop(context);
@@ -89,10 +168,17 @@ class _ManualWorkoutBuilderScreenState
   }
 
   void _addExercise() {
-    // TODO: Open exercise picker
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('בורר תרגילים בקרוב!'),
+    showDialog(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: _AddExerciseDialog(
+          onExerciseAdded: (exercise) {
+            setState(() {
+              _selectedExercises.add(exercise);
+            });
+          },
+        ),
       ),
     );
   }
@@ -104,7 +190,11 @@ class _ManualWorkoutBuilderScreenState
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: Colors.white,
         appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
           title: const Text('בניית אימון ידנית'),
           actions: [
             Padding(
@@ -118,10 +208,9 @@ class _ManualWorkoutBuilderScreenState
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     )
-                  : IconButton(
+                  : TextButton(
                       onPressed: _saveWorkout,
-                      icon: const Icon(Icons.save),
-                      tooltip: 'שמור אימון',
+                      child: const Text('שמור'),
                     ),
             ),
           ],
@@ -346,7 +435,7 @@ class _ManualWorkoutBuilderScreenState
                                           ),
                                         ),
                                         subtitle: Text(
-                                          '${exercise['sets'] ?? 0} סטים × ${exercise['reps'] ?? 0} חזרות',
+                                          '${exercise['sets'] ?? 0} סטים × ${exercise['reps'] ?? 0} חזרות${exercise['weight'] != null && exercise['weight']! > 0 ? ' × ${exercise['weight']} ק"ג' : ''}',
                                         ),
                                         trailing: IconButton(
                                           icon: const Icon(Icons.delete_outline),
@@ -411,6 +500,188 @@ class _ManualWorkoutBuilderScreenState
                 ),
               ),
       ),
+    );
+  }
+}
+
+class _AddExerciseDialog extends StatefulWidget {
+  final Function(Map<String, dynamic>) onExerciseAdded;
+
+  const _AddExerciseDialog({required this.onExerciseAdded});
+
+  @override
+  State<_AddExerciseDialog> createState() => _AddExerciseDialogState();
+}
+
+class _AddExerciseDialogState extends State<_AddExerciseDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _setsController = TextEditingController(text: '3');
+  final _repsController = TextEditingController(text: '10');
+  final _weightController = TextEditingController(text: '0');
+  final _notesController = TextEditingController();
+  String? _selectedCategory;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _setsController.dispose();
+    _repsController.dispose();
+    _weightController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  void _saveExercise() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final exercise = {
+      'name': _nameController.text.trim(),
+      'category': _selectedCategory ?? 'כוח',
+      'sets': int.tryParse(_setsController.text.trim()) ?? 3,
+      'reps': int.tryParse(_repsController.text.trim()) ?? 10,
+      'weight': double.tryParse(_weightController.text.trim()) ?? 0,
+      'duration_seconds': 0,
+      'notes': _notesController.text.trim(),
+    };
+
+    widget.onExerciseAdded(exercise);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('הוסף תרגיל'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'שם התרגיל',
+                  hintText: 'לדוגמה: סקוואט',
+                  prefixIcon: Icon(Icons.fitness_center),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'אנא הזן שם תרגיל';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                decoration: const InputDecoration(
+                  labelText: 'קטגוריה',
+                  prefixIcon: Icon(Icons.category),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'כוח', child: Text('כוח')),
+                  DropdownMenuItem(value: 'קרדיו', child: Text('קרדיו')),
+                  DropdownMenuItem(value: 'גמישות', child: Text('גמישות')),
+                  DropdownMenuItem(value: 'ליבה', child: Text('ליבה')),
+                  DropdownMenuItem(value: 'אחר', child: Text('אחר')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCategory = value;
+                  });
+                },
+                validator: (value) {
+                  if (value == null) {
+                    return 'אנא בחר קטגוריה';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _setsController,
+                      decoration: const InputDecoration(
+                        labelText: 'סטים',
+                        prefixIcon: Icon(Icons.repeat),
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'נדרש';
+                        }
+                        final sets = int.tryParse(value);
+                        if (sets == null || sets < 1) {
+                          return 'מספר תקף';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _repsController,
+                      decoration: const InputDecoration(
+                        labelText: 'חזרות',
+                        prefixIcon: Icon(Icons.repeat_one),
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'נדרש';
+                        }
+                        final reps = int.tryParse(value);
+                        if (reps == null || reps < 1) {
+                          return 'מספר תקף';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _weightController,
+                decoration: const InputDecoration(
+                  labelText: 'משקל (ק"ג)',
+                  hintText: '0 אם ללא משקל',
+                  prefixIcon: Icon(Icons.scale),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _notesController,
+                decoration: const InputDecoration(
+                  labelText: 'הערות (אופציונלי)',
+                  hintText: 'הוראות או הערות נוספות...',
+                  prefixIcon: Icon(Icons.note),
+                ),
+                maxLines: 2,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('ביטול'),
+        ),
+        ElevatedButton(
+          onPressed: _saveExercise,
+          child: const Text('הוסף'),
+        ),
+      ],
     );
   }
 }

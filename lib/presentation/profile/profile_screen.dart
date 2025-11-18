@@ -1,9 +1,14 @@
 import 'dart:ui' as ui;
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:muscleup/data/models/user_model.dart';
 import 'package:muscleup/data/services/firestore_service.dart';
+import 'package:muscleup/data/services/storage_service.dart';
+import 'package:muscleup/data/services/account_deletion_service.dart';
 import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -16,12 +21,18 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _firestoreService = FirestoreService();
+  final _storageService = StorageService();
+  final _accountDeletionService = AccountDeletionService();
+  final _imagePicker = ImagePicker();
 
   bool _isLoading = true;
   bool _isEditing = false;
   bool _isSaving = false;
+  bool _isDeletingAccount = false;
+  bool _isUploadingImage = false;
 
   UserModel? _currentUser;
+  File? _selectedImage;
 
   // Form controllers
   late TextEditingController _nameController;
@@ -107,6 +118,116 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _pickImage() async {
+    // If not in editing mode, enable editing first
+    if (!_isEditing) {
+      setState(() {
+        _isEditing = true;
+      });
+    }
+
+    try {
+      // Show options: Camera or Gallery
+      final source = await showDialog<ImageSource>(
+        context: context,
+        builder: (context) => Directionality(
+          textDirection: ui.TextDirection.rtl,
+          child: AlertDialog(
+            title: const Text('בחר תמונה'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('מצלמה'),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('גלריה'),
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      if (source == null) return;
+
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 800,
+        maxHeight: 800,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+        });
+
+        // Upload image immediately
+        await _uploadImage();
+      }
+    } catch (e) {
+      if (mounted) {
+        _showError('שגיאה בבחירת תמונה: $e');
+      }
+    }
+  }
+
+  Future<void> _uploadImage() async {
+    if (_selectedImage == null) return;
+
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated) return;
+
+    setState(() {
+      _isUploadingImage = true;
+    });
+
+    try {
+      final imageBytes = await _selectedImage!.readAsBytes();
+      final extension = _selectedImage!.path.split('.').last.toLowerCase();
+      
+      final imageUrl = await _storageService.uploadProfileImage(
+        authState.user.uid,
+        imageBytes,
+        extension == 'jpg' || extension == 'jpeg' ? 'jpg' : 'png',
+      );
+
+      // Update user with new photo URL
+      await _firestoreService.updateUser(authState.user.uid, {
+        'photoUrl': imageUrl,
+      });
+
+      // Update local user model
+      if (_currentUser != null) {
+        setState(() {
+          _currentUser = _currentUser!.copyWith(photoUrl: imageUrl);
+          _isUploadingImage = false;
+        });
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('התמונה הועלתה בהצלחה'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isUploadingImage = false;
+        });
+        _showError('שגיאה בהעלאת התמונה: $e');
+      }
+    }
+  }
+
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -136,11 +257,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       await _firestoreService.setUser(authState.user.uid, updatedUser);
 
+      // Upload image if selected
+      if (_selectedImage != null && !_isUploadingImage) {
+        await _uploadImage();
+      }
+
       if (mounted) {
         setState(() {
           _currentUser = updatedUser;
           _isEditing = false;
           _isSaving = false;
+          _selectedImage = null; // Clear selected image after save
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -202,21 +329,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         appBar: AppBar(
           title: const Text('ערוך פרופיל'),
           actions: [
-            if (_isEditing)
-              TextButton(
-                onPressed: _isSaving
-                    ? null
-                    : () {
-                        setState(() {
-                          _isEditing = false;
-                          _loadUserData();
-                        });
-                      },
-                child: const Text('ביטול'),
-              ),
             Padding(
               padding: const EdgeInsets.only(left: 8.0),
-              child: _isSaving
+              child: _isSaving || _isUploadingImage
                   ? const Padding(
                       padding: EdgeInsets.all(16.0),
                       child: SizedBox(
@@ -225,18 +340,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     )
-                  : IconButton(
-                      onPressed: () {
-                        if (_isEditing) {
-                          _saveProfile();
-                        } else {
-                          setState(() {
-                            _isEditing = true;
-                          });
-                        }
-                      },
-                      icon: Icon(_isEditing ? Icons.save : Icons.edit),
-                    ),
+                  : _isEditing
+                      ? TextButton(
+                          onPressed: _saveProfile,
+                          child: const Text('שמור'),
+                        )
+                      : IconButton(
+                          onPressed: () {
+                            setState(() {
+                              _isEditing = true;
+                            });
+                          },
+                          icon: const Icon(Icons.edit),
+                        ),
             ),
           ],
         ),
@@ -251,20 +367,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Center(
                   child: Stack(
                     children: [
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundImage: _currentUser!.photoUrl != null
-                            ? NetworkImage(_currentUser!.photoUrl!)
-                            : null,
-                        backgroundColor:
-                            Theme.of(context).colorScheme.primary.withAlpha(25),
-                        child: _currentUser!.photoUrl == null
-                            ? Icon(
-                                Icons.person,
-                                size: 60,
-                                color: Theme.of(context).colorScheme.primary,
-                              )
-                            : null,
+                      InkWell(
+                        onTap: _pickImage,
+                        borderRadius: BorderRadius.circular(60),
+                        child: CircleAvatar(
+                          radius: 60,
+                          backgroundImage: _selectedImage != null
+                              ? FileImage(_selectedImage!)
+                              : _currentUser!.photoUrl != null
+                                  ? NetworkImage(_currentUser!.photoUrl!)
+                                  : null,
+                          backgroundColor:
+                              Theme.of(context).colorScheme.primary.withAlpha(25),
+                          child: _selectedImage == null && _currentUser!.photoUrl == null
+                              ? Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: Theme.of(context).colorScheme.primary,
+                                )
+                              : _isUploadingImage
+                                  ? Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black54,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 3,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        ),
+                                      ),
+                                    )
+                              : null,
+                        ),
                       ),
                       Positioned(
                         bottom: 0,
@@ -476,12 +611,225 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   keyboardType: TextInputType.phone,
                 ),
                 const SizedBox(height: 32),
+
+                // Account Deletion Section
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.delete_forever,
+                            color: Colors.red[600],
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'מחיקת חשבון',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'מחיקת החשבון תמחק לצמיתות את כל המידע והנתונים שלך. פעולה זו אינה ניתנת לביטול.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.red,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isDeletingAccount ? null : _showAccountDeletionDialog,
+                          icon: const Icon(Icons.delete_forever),
+                          label: const Text('מחק חשבון'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red[600],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  void _showAccountDeletionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text(
+            'מחיקת חשבון',
+            style: TextStyle(color: Colors.red),
+          ),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'האם אתה בטוח שברצונך למחוק את החשבון שלך?',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'פעולה זו תמחק לצמיתות:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 8),
+              Text('• כל המידע האישי שלך'),
+              Text('• כל הנתונים וההיסטוריה'),
+              Text('• כל הקבצים והחתימות'),
+              SizedBox(height: 16),
+              Text(
+                'פעולה זו אינה ניתנת לביטול!',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('ביטול'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _showAccountDeletionConfirmationDialog();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              child: const Text('המשך למחיקה'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAccountDeletionConfirmationDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text(
+            'אישור סופי למחיקה',
+            style: TextStyle(color: Colors.red),
+          ),
+          content: const Text(
+            'זהו האישור האחרון. האם אתה בטוח לחלוטין שברצונך למחוק את החשבון שלך? פעולה זו אינה ניתנת לביטול.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: _isDeletingAccount
+                  ? null
+                  : () => Navigator.pop(context),
+              child: const Text('ביטול'),
+            ),
+            ElevatedButton(
+              onPressed: _isDeletingAccount ? null : _deleteAccount,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              child: _isDeletingAccount
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text('מחק חשבון לצמיתות'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteAccount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('לא נמצא משתמש מחובר'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isDeletingAccount = true;
+    });
+
+    try {
+      await _accountDeletionService.deleteAccount(user.uid);
+
+      if (mounted) {
+        // Close any open dialogs
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        
+        // Sign out and navigate to login
+        context.read<AuthBloc>().add(const AuthSignOutRequested());
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('החשבון נמחק בהצלחה'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isDeletingAccount = false;
+        });
+        Navigator.of(context).pop(); // Close confirmation dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה במחיקת החשבון: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 }
 

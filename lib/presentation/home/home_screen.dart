@@ -20,20 +20,43 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _firestoreService = FirestoreService();
+  final GlobalKey _recentWorkoutsKey = GlobalKey();
   late String _currentTime;
   late String _currentDate;
   UserModel? _userData;
   bool _isLoadingUser = true;
 
+  void refreshWorkouts() {
+    final state = _recentWorkoutsKey.currentState;
+    if (state is _RecentWorkoutsCardState) {
+      state.refresh();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _updateTime();
     _loadUserData();
     // Update time every second
     Future.delayed(const Duration(seconds: 1), _updateTimeLoop);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Refresh data when app comes back to foreground
+      _loadUserData();
+    }
   }
 
   void _updateTime() {
@@ -170,8 +193,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                             const SizedBox(width: 24),
-                            const Expanded(
-                              child: RecentWorkoutsCard(),
+                            Expanded(
+                              child: RecentWorkoutsCard(key: _recentWorkoutsKey),
                             ),
                           ],
                         );
@@ -215,7 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         _userData?.createdAt ?? DateTime.now(),
                                   ),
                             const SizedBox(height: 24),
-                            const RecentWorkoutsCard(),
+                            RecentWorkoutsCard(key: _recentWorkoutsKey),
                           ],
                         );
                       }

@@ -13,6 +13,7 @@ import 'package:muscleup/data/services/signature_migration_service.dart';
 import 'package:muscleup/data/services/app_tracking_service.dart';
 import 'package:muscleup/data/services/ai_service.dart';
 import 'package:muscleup/data/models/user_model.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +38,9 @@ void main() async {
   // Setup dependency injection
   setupServiceLocator();
 
+  // Initialize date formatting for Hebrew locale (required for receipt generation)
+  await _initializeDateFormatting();
+
   // Initialize AI service (for OpenAI API)
   await _initializeAIService();
 
@@ -47,6 +51,23 @@ void main() async {
   _runSignatureMigration();
 
   runApp(const MyApp());
+}
+
+/// Initialize date formatting for Hebrew locale
+Future<void> _initializeDateFormatting() async {
+  try {
+    await initializeDateFormatting('he', null);
+    print('✅ Date formatting initialized for Hebrew locale');
+  } catch (e) {
+    print('⚠️ Failed to initialize date formatting: $e');
+    // Try to initialize with default locale as fallback
+    try {
+      await initializeDateFormatting('en', null);
+      print('✅ Date formatting initialized with English locale as fallback');
+    } catch (e2) {
+      print('❌ Failed to initialize date formatting with fallback: $e2');
+    }
+  }
 }
 
 /// Initialize AI service

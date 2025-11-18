@@ -21,7 +21,11 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: Colors.white,
         appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
           title: const Text('ספריית תרגילים'),
         ),
         body: _isLoading

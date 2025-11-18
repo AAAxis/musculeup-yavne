@@ -61,6 +61,31 @@ class StorageService {
     }
   }
 
+  /// Upload profile image to Firebase Storage
+  /// Returns the download URL of the uploaded image
+  Future<String> uploadProfileImage(String userId, Uint8List imageBytes, String extension) async {
+    try {
+      // Create a reference to the file location
+      final Reference ref = _storage.ref().child('profile_images/$userId.$extension');
+
+      // Upload the file
+      final UploadTask uploadTask = ref.putData(
+        imageBytes,
+        SettableMetadata(contentType: 'image/$extension'),
+      );
+
+      // Wait for upload to complete
+      final TaskSnapshot snapshot = await uploadTask;
+
+      // Get download URL
+      final String downloadUrl = await snapshot.ref.getDownloadURL();
+
+      return downloadUrl;
+    } catch (e) {
+      throw Exception('Failed to upload profile image: $e');
+    }
+  }
+
   /// Delete a file from Firebase Storage
   Future<void> deleteFile(String filePath) async {
     try {

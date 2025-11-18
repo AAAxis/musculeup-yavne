@@ -12,7 +12,13 @@ class WorkoutsScreen extends StatelessWidget {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          title: const Text('אימונים'),
+        ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -100,13 +106,14 @@ class WorkoutsScreen extends StatelessWidget {
       borderRadius: BorderRadius.circular(24),
       child: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.grey[200]!),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(25),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
@@ -123,10 +130,7 @@ class WorkoutsScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.red[700],
-                        decoration: TextDecoration.underline,
-                        decorationColor: Colors.yellow[600],
-                        decorationThickness: 2.5,
+                        color: Colors.grey[900],
                       ),
                     ),
                   ),
@@ -162,10 +166,7 @@ class WorkoutsScreen extends StatelessWidget {
                   description,
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.black87,
-                    decoration: TextDecoration.underline,
-                    decorationColor: Colors.yellow[600],
-                    decorationThickness: 2.5,
+                    color: Colors.grey[700],
                   ),
                 ),
               ),

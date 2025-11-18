@@ -122,10 +122,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
-                : IconButton(
+                : TextButton(
                     onPressed: _saveNotificationSettings,
-                    icon: const Icon(Icons.save),
-                    tooltip: 'Save',
+                    child: const Text('שמור'),
                   ),
           ),
         ],

@@ -54,6 +54,9 @@ dependencies:
   # File sharing and path
   share_plus: ^10.1.2
   path_provider: ^2.1.5
+  
+  # Image Picker
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
