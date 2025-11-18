@@ -18,15 +18,22 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
+  final GlobalKey _homeKey = GlobalKey();
 
-  final List<Widget> _screens = const [
-    HomeScreen(),
-    BoostScreen(),
-    MealsScreen(),
-    WorkoutsScreen(),
-    LogScreen(),
-    SettingsScreen(),
-  ];
+  final List<Widget> _screens = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _screens.addAll([
+      HomeScreen(key: _homeKey),
+      const BoostScreen(),
+      const MealsScreen(),
+      const WorkoutsScreen(),
+      const LogScreen(),
+      const SettingsScreen(),
+    ]);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +90,18 @@ class _MainNavigationState extends State<MainNavigation> {
               onDestinationSelected: (index) {
                 setState(() {
                   _currentIndex = index;
+                  // Refresh home screen when navigating to it
+                  if (index == 0) {
+                    final homeState = _homeKey.currentState;
+                    if (homeState != null) {
+                      // Call refreshWorkouts method dynamically
+                      try {
+                        (homeState as dynamic).refreshWorkouts();
+                      } catch (e) {
+                        // Method might not exist, ignore
+                      }
+                    }
+                  }
                 });
               },
               destinations: const [

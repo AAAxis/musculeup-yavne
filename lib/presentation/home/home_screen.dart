@@ -30,8 +30,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void refreshWorkouts() {
     final state = _recentWorkoutsKey.currentState;
-    if (state is _RecentWorkoutsCardState) {
-      state.refresh();
+    if (state != null) {
+      // Call refresh method dynamically to avoid type issues
+      (state as dynamic).refresh();
     }
   }
 
