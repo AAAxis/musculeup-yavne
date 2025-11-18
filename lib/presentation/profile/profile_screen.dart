@@ -71,7 +71,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _coachNameController.text = user.coachName ?? '';
             _coachEmailController.text = user.coachEmail ?? '';
             _coachPhoneController.text = user.coachPhone ?? '';
-            _selectedGender = user.gender?.capitalize();
+            _selectedGender = user.gender != null 
+                ? user.gender![0].toUpperCase() + user.gender!.substring(1)
+                : null;
             _selectedBirthDate = user.birthDate != null
                 ? DateTime.tryParse(user.birthDate!)
                 : null;
@@ -110,16 +112,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    if (_selectedGender == null) {
-      _showError('אנא בחר את המגדר שלך');
-      return;
-    }
-
-    if (_selectedBirthDate == null) {
-      _showError('אנא בחר את תאריך הלידה שלך');
-      return;
-    }
-
+    // Gender and birth date are now optional (can be set in settings)
     setState(() {
       _isSaving = true;
     });
@@ -130,8 +123,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final updatedUser = _currentUser!.copyWith(
         name: _nameController.text.trim(),
-        gender: _selectedGender!.toLowerCase(),
-        birthDate: _formatDate(_selectedBirthDate!),
+        gender: _selectedGender?.toLowerCase(),
+        birthDate: _selectedBirthDate != null ? _formatDate(_selectedBirthDate!) : null,
         height: double.parse(_heightController.text),
         initialWeight: double.parse(_weightController.text),
         coachName: _coachNameController.text.trim(),
@@ -329,11 +322,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Gender
+                // Gender (Optional)
                 DropdownButtonFormField<String>(
                   value: _selectedGender,
                   decoration: const InputDecoration(
-                    labelText: 'מגדר',
+                    labelText: 'מגדר (אופציונלי)',
                     prefixIcon: Icon(Icons.wc),
                   ),
                   items: const [
@@ -350,12 +343,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Birth Date
+                // Birth Date (Optional)
                 InkWell(
-                  onTap: _selectBirthDate,
+                  onTap: _isEditing ? _selectBirthDate : null,
                   child: InputDecorator(
                     decoration: const InputDecoration(
-                      labelText: 'תאריך לידה',
+                      labelText: 'תאריך לידה (אופציונלי)',
                       prefixIcon: Icon(Icons.calendar_today),
                     ),
                     child: Text(

@@ -62,8 +62,8 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         email: widget.firebaseUser.email!,
         name: _controller.name,
         photoUrl: widget.firebaseUser.photoURL,
-        gender: _controller.gender!,
-        birthDate: _formatDate(_controller.birthDate!),
+        gender: _controller.gender,
+        birthDate: _controller.birthDate != null ? _formatDate(_controller.birthDate!) : null,
         height: _controller.height!,
         initialWeight: _controller.initialWeight!,
         coachName: _controller.coachName!,
@@ -152,7 +152,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
             onStart: _nextPage,
           ),
 
-          // Step 1: Personal Info (Name, Gender, Birth Date) - 3 questions
+          // Step 1: Personal Info (Name only)
           PersonalInfoScreen(
             controller: _controller,
             onNext: _nextPage,
@@ -175,7 +175,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
 
           // Step 4: Contract Signing (updates user to 'active' status)
           ContractScreen(
-            userGender: _controller.gender ?? 'male',
+            userGender: _controller.gender ?? 'male', // Default to male if not provided
             userName: _controller.name,
             userId: widget.firebaseUser.uid,
             onContractSigned: _handleContractSigned,

@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
+import 'package:muscleup/data/services/ai_service.dart';
 
 class AIRecipeBuilderScreen extends StatefulWidget {
   const AIRecipeBuilderScreen({super.key});
@@ -13,10 +14,13 @@ class AIRecipeBuilderScreen extends StatefulWidget {
 class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
   final _formKey = GlobalKey<FormState>();
   final _ingredientsController = TextEditingController();
+  final _aiService = AIService();
 
   bool _isLoading = false;
   bool _isGenerating = false;
+  bool _isGeneratingImage = false;
   Map<String, dynamic>? _generatedRecipe;
+  String? _errorMessage;
 
   String? _selectedNutritionalGoal;
 
@@ -24,6 +28,20 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
   void dispose() {
     _ingredientsController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeAI();
+  }
+
+  Future<void> _initializeAI() async {
+    try {
+      await _aiService.initialize();
+    } catch (e) {
+      print('Warning: Failed to initialize AI service: $e');
+    }
   }
 
   Future<void> _generateRecipe() async {
@@ -43,43 +61,171 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
 
     setState(() {
       _isGenerating = true;
+      _isGeneratingImage = false;
+      _errorMessage = null;
+      _generatedRecipe = null;
     });
 
     try {
       final authState = context.read<AuthBloc>().state;
       if (authState is! AuthAuthenticated) return;
 
-      // TODO: Call AI API to generate recipe
-      // final recipeData = {
-      //   'ingredients': _ingredientsController.text.trim(),
-      //   'nutritional_goal': _selectedNutritionalGoal,
-      // };
+      final ingredients = _ingredientsController.text.trim();
+      final nutritionalGoal = _selectedNutritionalGoal!;
 
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
+      // Map nutritional goal to Hebrew
+      final goalMap = {
+        'balanced': 'ארוחה מאוזנת',
+        'cutting': 'חיטוב/הפחתת שומן',
+        'bulking': 'גיבוש/הגדלת שריר',
+        'maintain': 'שמירה על משקל',
+      };
+      final goalHebrew = goalMap[nutritionalGoal] ?? nutritionalGoal;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('יצירת מתכון עם AI בקרוב!'),
-            backgroundColor: Colors.blue,
-          ),
-        );
+      final prompt = '''
+אתה שף מומחה לתזונה בריאה למפתחי גוף וספורטאים. צור מתכון מפורט ומדויק בעברית על בסיס הנתונים הבאים:
+
+מרכיבים זמינים: $ingredients
+מטרה תזונתית: $goalHebrew
+
+דרישות למתכון:
+1. השתמש רק במרכיבים שצוינו או במרכיבים בסיסיים נפוצים (מלח, פלפל, שמן זית וכו')
+2. ודא שהמתכון תואם למטרה התזונתית שנבחרה:
+   - "ארוחה מאוזנת": יחס מאוזן של חלבון, פחמימות ושומנים בריאים
+   - "חיטוב/הפחתת שומן": דגש על חלבון גבוה וקלוריות נמוכות יחסית
+   - "גיבוש/הגדלת שריר": דגש על קלוריות גבוהות וחלבון
+   - "שמירה על משקל": מתכון מאוזן עם כמות קלוריות בינונית
+3. תן כמויות מדויקות לכל מרכיב
+4. פרט הוראות הכנה צעד אחר צעד, ממוספרות
+5. חשב ערכים תזונתיים מדויקים על בסיס המרכיבים והכמויות
+
+חשוב מאוד: החזר את התשובה בפורמט JSON עם המבנה הבא בדיוק. השתמש בשמות השדות באנגלית בלבד:
+{
+  "name": "שם המתכון בעברית",
+  "category": "ארוחות עיקריות" או "נשנושים בריאים" וכו',
+  "ingredients": ["מרכיב 1 - כמות", "מרכיב 2 - כמות", ...],
+  "instructions": "הוראות הכנה מפורטות",
+  "prep_time": מספר_דקות,
+  "servings": מספר_מנות,
+  "calories_per_serving": מספר_קלוריות,
+  "protein_grams": מספר_גרם,
+  "carbs_grams": מספר_גרם,
+  "fat_grams": מספר_גרם,
+  "difficulty": "קל" או "בינוני" או "קשה",
+  "equipment": "ציוד נדרש",
+  "tips": "טיפים"
+}
+
+החזר רק את ה-JSON, ללא טקסט נוסף לפני או אחרי. כל המפתחות (keys) חייבים להיות באנגלית.
+''';
+
+      // Generate recipe using AI
+      final recipeData = await _aiService.invokeLLM(
+        prompt: prompt,
+        responseJsonSchema: {
+          'name': 'string',
+          'category': 'string',
+          'ingredients': 'array',
+          'instructions': 'string',
+          'prep_time': 'number',
+          'servings': 'number',
+          'calories_per_serving': 'number',
+          'protein_grams': 'number',
+          'carbs_grams': 'number',
+          'fat_grams': 'number',
+          'difficulty': 'string',
+          'equipment': 'string',
+          'tips': 'string',
+        },
+      );
+
+      // Handle nested structure
+      Map<String, dynamic> finalRecipe;
+      if (recipeData is Map) {
+        if (recipeData['content'] != null && recipeData['name'] == null) {
+          finalRecipe = Map<String, dynamic>.from(recipeData['content']);
+        } else if (recipeData['recipe'] != null && recipeData['name'] == null) {
+          finalRecipe = Map<String, dynamic>.from(recipeData['recipe']);
+        } else {
+          finalRecipe = Map<String, dynamic>.from(recipeData);
+        }
+      } else {
+        throw Exception('Invalid recipe data format');
+      }
+
+      // Handle ingredients array
+      if (finalRecipe['ingredients'] != null) {
+        final ingredientsList = finalRecipe['ingredients'] as List;
+        finalRecipe['ingredients'] = ingredientsList.map((ing) {
+          if (ing is String) return ing;
+          if (ing is Map) {
+            final name = ing['name'] ?? ing['שם'] ?? '';
+            final amount = ing['amount'] ?? ing['כמות'] ?? '';
+            final unit = ing['unit'] ?? ing['יחידה'] ?? '';
+            return amount.isNotEmpty && unit.isNotEmpty
+                ? '$name - $amount $unit'
+                : name;
+          }
+          return ing.toString();
+        }).toList();
+      }
+
+      // Validate required fields
+      if (finalRecipe['name'] == null ||
+          finalRecipe['ingredients'] == null ||
+          finalRecipe['ingredients'] is! List) {
+        throw Exception('AI response is missing required fields. Please try again.');
+      }
+
+      setState(() {
+        _generatedRecipe = finalRecipe;
+        _isGenerating = false;
+      });
+
+      // Generate image (optional - don't fail if it errors)
+      setState(() {
+        _isGeneratingImage = true;
+      });
+
+      try {
+        final imagePrompt =
+            'A beautiful, delicious-looking plate of ${finalRecipe['name']}. Professional food photography, high quality, studio lighting, appetizing. The dish is ${finalRecipe['category'] ?? 'healthy meal'}.';
+        final imageResult = await _aiService.generateImage(prompt: imagePrompt);
+        if (imageResult['url'] != null && mounted) {
+          setState(() {
+            _generatedRecipe = {
+              ...finalRecipe,
+              'image_url': imageResult['url'],
+            };
+          });
+        }
+      } catch (imageError) {
+        print('Image generation failed (optional feature): $imageError');
+        // Don't show error to user - image is optional
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isGeneratingImage = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().contains('API key')
+              ? 'מפתח API חסר. אנא הגדר מפתח OpenAI ב-Firebase Remote Config.'
+              : 'שגיאה ביצירת המתכון. נסה שוב או שנה את הפרמטרים.';
+          _isGenerating = false;
+          _isGeneratingImage = false;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('שגיאה ביצירת המתכון: $e'),
+            content: Text(_errorMessage ?? 'שגיאה ביצירת המתכון'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isGenerating = false;
-        });
       }
     }
   }
@@ -273,8 +419,8 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
                             children: [
                               ElevatedButton.icon(
                                 onPressed:
-                                    _isGenerating ? null : _generateRecipe,
-                                icon: _isGenerating
+                                    (_isGenerating || _isGeneratingImage) ? null : _generateRecipe,
+                                icon: (_isGenerating || _isGeneratingImage)
                                     ? const SizedBox(
                                         width: 20,
                                         height: 20,
@@ -289,7 +435,9 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
                                 label: Text(
                                   _isGenerating
                                       ? 'מייצר מתכון חכם...'
-                                      : 'צור מתכון חכם',
+                                      : _isGeneratingImage
+                                          ? 'מייצר תמונה...'
+                                          : 'צור מתכון חכם',
                                 ),
                                 style: ElevatedButton.styleFrom(
                                   padding:
@@ -330,7 +478,7 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Generated Recipe Display (placeholder)
+                      // Generated Recipe Display
                       if (_generatedRecipe != null)
                         Container(
                           decoration: BoxDecoration(
@@ -349,6 +497,28 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Recipe Image
+                                if (_generatedRecipe!['image_url'] != null)
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Image.network(
+                                      _generatedRecipe!['image_url'],
+                                      width: double.infinity,
+                                      height: 200,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          height: 200,
+                                          color: Colors.grey[200],
+                                          child: const Icon(Icons.image_not_supported),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                if (_generatedRecipe!['image_url'] != null)
+                                  const SizedBox(height: 16),
+                                
+                                // Recipe Name
                                 Row(
                                   children: [
                                     Icon(
@@ -369,7 +539,125 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 16),
-                                // Recipe details would go here
+
+                                // Recipe Info
+                                Wrap(
+                                  spacing: 16,
+                                  runSpacing: 8,
+                                  children: [
+                                    if (_generatedRecipe!['prep_time'] != null)
+                                      Chip(
+                                        avatar: const Icon(Icons.timer, size: 18),
+                                        label: Text('${_generatedRecipe!['prep_time']} דקות'),
+                                      ),
+                                    if (_generatedRecipe!['servings'] != null)
+                                      Chip(
+                                        avatar: const Icon(Icons.people, size: 18),
+                                        label: Text('${_generatedRecipe!['servings']} מנות'),
+                                      ),
+                                    if (_generatedRecipe!['difficulty'] != null)
+                                      Chip(
+                                        avatar: const Icon(Icons.star, size: 18),
+                                        label: Text(_generatedRecipe!['difficulty']),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+
+                                // Nutritional Info
+                                if (_generatedRecipe!['calories_per_serving'] != null)
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue[50],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                      children: [
+                                        _buildNutritionChip('קלוריות', '${_generatedRecipe!['calories_per_serving']}'),
+                                        if (_generatedRecipe!['protein_grams'] != null)
+                                          _buildNutritionChip('חלבון', '${_generatedRecipe!['protein_grams']}ג'),
+                                        if (_generatedRecipe!['carbs_grams'] != null)
+                                          _buildNutritionChip('פחמימות', '${_generatedRecipe!['carbs_grams']}ג'),
+                                        if (_generatedRecipe!['fat_grams'] != null)
+                                          _buildNutritionChip('שומן', '${_generatedRecipe!['fat_grams']}ג'),
+                                      ],
+                                    ),
+                                  ),
+                                const SizedBox(height: 16),
+
+                                // Ingredients
+                                if (_generatedRecipe!['ingredients'] != null)
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'מרכיבים:',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      ...((_generatedRecipe!['ingredients'] as List).map((ing) => Padding(
+                                        padding: const EdgeInsets.only(bottom: 4),
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.check_circle_outline, size: 16, color: Colors.green),
+                                            const SizedBox(width: 8),
+                                            Expanded(child: Text(ing.toString())),
+                                          ],
+                                        ),
+                                      ))),
+                                    ],
+                                  ),
+                                const SizedBox(height: 16),
+
+                                // Instructions
+                                if (_generatedRecipe!['instructions'] != null)
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'הוראות הכנה:',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _generatedRecipe!['instructions'],
+                                        style: const TextStyle(height: 1.6),
+                                      ),
+                                    ],
+                                  ),
+                                const SizedBox(height: 16),
+
+                                // Tips
+                                if (_generatedRecipe!['tips'] != null)
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber[50],
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.amber[200]!),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(Icons.lightbulb, color: Colors.amber[700], size: 20),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            _generatedRecipe!['tips'],
+                                            style: TextStyle(color: Colors.amber[900]),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -379,6 +667,27 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
                 ),
               ),
       ),
+    );
+  }
+
+  Widget _buildNutritionChip(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+          ),
+        ),
+      ],
     );
   }
 }

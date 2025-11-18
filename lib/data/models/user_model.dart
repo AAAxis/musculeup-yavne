@@ -54,8 +54,8 @@ class UserModel {
   // Check if profile is complete
   bool get isProfileComplete {
     return name.isNotEmpty &&
-        gender != null &&
-        birthDate != null &&
+        // gender is now optional for Apple App Store compliance
+        // birthDate is now optional for Apple App Store compliance
         height != null &&
         initialWeight != null &&
         coachName != null &&

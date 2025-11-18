@@ -10,6 +10,8 @@ import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
 import 'package:muscleup/core/di/service_locator.dart';
 import 'package:muscleup/data/services/firestore_service.dart';
 import 'package:muscleup/data/services/signature_migration_service.dart';
+import 'package:muscleup/data/services/app_tracking_service.dart';
+import 'package:muscleup/data/services/ai_service.dart';
 import 'package:muscleup/data/models/user_model.dart';
 
 void main() async {
@@ -35,10 +37,38 @@ void main() async {
   // Setup dependency injection
   setupServiceLocator();
 
+  // Initialize AI service (for OpenAI API)
+  await _initializeAIService();
+
+  // Request App Tracking Transparency permission
+  await _requestTrackingPermission();
+
   // Run signature migration in background
   _runSignatureMigration();
 
   runApp(const MyApp());
+}
+
+/// Initialize AI service
+Future<void> _initializeAIService() async {
+  try {
+    final aiService = AIService();
+    await aiService.initialize();
+    print('✅ AI service initialized');
+  } catch (e) {
+    print('⚠️ Failed to initialize AI service: $e');
+    // Don't fail app startup if AI service fails
+  }
+}
+
+/// Request App Tracking Transparency permission
+Future<void> _requestTrackingPermission() async {
+  try {
+    final isAuthorized = await AppTrackingService.requestTrackingPermission();
+    print('📊 Tracking permission: ${isAuthorized ? 'Granted' : 'Denied'}');
+  } catch (e) {
+    print('❌ Failed to request tracking permission: $e');
+  }
 }
 
 /// Run signature migration in background

@@ -28,8 +28,8 @@ class OnboardingController {
 
   bool get isComplete {
     return name.isNotEmpty &&
-        gender != null &&
-        birthDate != null &&
+        // gender is now optional
+        // birthDate is now optional  
         height != null &&
         initialWeight != null &&
         coachName != null &&

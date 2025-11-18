@@ -52,39 +52,57 @@ class _BirthdateScreenState extends State<BirthdateScreen> {
       currentStep: 3,
       totalSteps: 8,
       title: 'When were you born?',
-      subtitle: 'We need this to personalize your fitness plan',
+      subtitle: 'We need this to personalize your fitness plan (Optional)',
       onBack: widget.onBack,
-      onNext: _selectedDate != null ? widget.onNext : null,
-      isNextEnabled: _selectedDate != null,
-      child: InkWell(
-        onTap: _selectDate,
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.calendar_today,
-                size: 32,
-                color: Theme.of(context).colorScheme.primary,
+      onNext: widget.onNext, // Always enabled now since it's optional
+      isNextEnabled: true,
+      child: Column(
+        children: [
+          InkWell(
+            onTap: _selectDate,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(16),
               ),
-              const SizedBox(width: 16),
-              Text(
-                _selectedDate == null
-                    ? 'Select your birth date'
-                    : _formatDate(_selectedDate!),
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: _selectedDate == null
-                          ? Colors.grey[600]
-                          : Colors.black87,
-                    ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today,
+                    size: 32,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    _selectedDate == null
+                        ? 'Select your birth date (Optional)'
+                        : _formatDate(_selectedDate!),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: _selectedDate == null
+                              ? Colors.grey[600]
+                              : Colors.black87,
+                        ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 24),
+          TextButton(
+            onPressed: () {
+              widget.controller.birthDate = null;
+              widget.onNext();
+            },
+            child: const Text(
+              'Skip',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

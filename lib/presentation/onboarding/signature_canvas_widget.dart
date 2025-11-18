@@ -104,11 +104,11 @@ class _SignatureCanvasWidgetState extends State<SignatureCanvasWidget> {
                 },
                 onPanEnd: (details) {
                   if (widget.disabled) return;
-                  setState(() {
+                    setState(() {
                     _points.add(null); // Add null to separate strokes
-                    _isDrawing = false;
-                  });
-                  _saveSignature();
+                      _isDrawing = false;
+                    });
+                    _saveSignature();
                 },
                 child: CustomPaint(
                   painter: SignaturePainter(_points, isDark),

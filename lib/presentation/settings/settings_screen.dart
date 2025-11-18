@@ -1,9 +1,12 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
 import 'package:muscleup/presentation/profile/profile_screen.dart';
 import 'package:muscleup/presentation/settings/notifications_screen.dart';
+import 'package:muscleup/presentation/export/export_screen.dart';
+import 'package:muscleup/data/services/account_deletion_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -14,6 +17,9 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final _accountDeletionService = AccountDeletionService();
+  bool _isDeletingAccount = false;
+
   Future<void> _launchURL(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
@@ -57,6 +63,162 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  void _showAccountDeletionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text(
+            'מחיקת חשבון',
+            style: TextStyle(color: Colors.red),
+          ),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'האם אתה בטוח שברצונך למחוק את החשבון שלך?',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'פעולה זו תמחק לצמיתות:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 8),
+              Text('• כל המידע האישי שלך'),
+              Text('• כל הנתונים וההיסטוריה'),
+              Text('• כל הקבצים והחתימות'),
+              SizedBox(height: 16),
+              Text(
+                'פעולה זו אינה ניתנת לביטול!',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('ביטול'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _showAccountDeletionConfirmationDialog();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              child: const Text('המשך למחיקה'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAccountDeletionConfirmationDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text(
+            'אישור סופי למחיקה',
+            style: TextStyle(color: Colors.red),
+          ),
+          content: const Text(
+            'זהו האישור האחרון. האם אתה בטוח לחלוטין שברצונך למחוק את החשבון שלך? פעולה זו אינה ניתנת לביטול.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: _isDeletingAccount
+                  ? null
+                  : () => Navigator.pop(context),
+              child: const Text('ביטול'),
+            ),
+            ElevatedButton(
+              onPressed: _isDeletingAccount ? null : _deleteAccount,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              child: _isDeletingAccount
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text('מחק חשבון לצמיתות'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteAccount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('לא נמצא משתמש מחובר'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isDeletingAccount = true;
+    });
+
+    try {
+      await _accountDeletionService.deleteAccount(user.uid);
+
+      if (mounted) {
+        // Close any open dialogs
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        
+        // Sign out and navigate to login
+        context.read<AuthBloc>().add(const AuthSignOutRequested());
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('החשבון נמחק בהצלחה'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isDeletingAccount = false;
+        });
+        
+        Navigator.of(context).pop(); // Close confirmation dialog
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה במחיקת החשבון: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -108,6 +270,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const NotificationsScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Export/Reports Section
+            _buildSectionCard(
+              context,
+              title: 'דוחות וייצוא',
+              icon: Icons.description,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.file_download_outlined),
+                  title: const Text('ייצוא דוחות'),
+                  subtitle: const Text('הפק דוחות מקצועיים ושלח למאמן'),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ExportScreen(),
                       ),
                     );
                   },
@@ -169,6 +354,70 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
               ],
+            ),
+            const SizedBox(height: 16),
+
+            // Account Deletion Section
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(25),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.delete_forever,
+                          color: Colors.red[600],
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'מחיקת חשבון',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'מחיקת החשבון תמחק לצמיתות את כל המידע והנתונים שלך. פעולה זו אינה ניתנת לביטול.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      onPressed: _isDeletingAccount ? null : _showAccountDeletionDialog,
+                      icon: const Icon(Icons.delete_forever),
+                      label: const Text('מחק חשבון'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[600],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 16),
 

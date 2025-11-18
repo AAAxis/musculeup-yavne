@@ -86,10 +86,10 @@ class _ContractScreenState extends State<ContractScreen> {
     } catch (e) {
       print('❌ Sign failed: $e');
       if (mounted) {
-        setState(() {
-          _errorMessage = 'שגיאה בחתימה על החוזה: $e';
-          _isUpdating = false;
-        });
+      setState(() {
+        _errorMessage = 'שגיאה בחתימה על החוזה: $e';
+        _isUpdating = false;
+      });
       }
     }
   }

@@ -56,5 +56,7 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>This app would like to access your data to provide personalized content and improve your experience.</string>
 </dict>
 </plist>

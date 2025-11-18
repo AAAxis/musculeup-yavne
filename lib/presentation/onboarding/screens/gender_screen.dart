@@ -44,7 +44,7 @@ class _GenderScreenState extends State<GenderScreen> {
       currentStep: 2,
       totalSteps: 8,
       title: 'What\'s your gender?',
-      subtitle: 'This helps us personalize your experience',
+      subtitle: 'This helps us personalize your experience (Optional)',
       onBack: widget.onBack,
       child: Column(
         children: [
@@ -60,6 +60,20 @@ class _GenderScreenState extends State<GenderScreen> {
             label: 'Female',
             isSelected: _selectedGender == 'female',
             onTap: () => _selectGender('female'),
+          ),
+          const SizedBox(height: 24),
+          TextButton(
+            onPressed: () {
+              widget.controller.gender = null;
+              widget.onNext();
+            },
+            child: const Text(
+              'Skip',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+              ),
+            ),
           ),
         ],
       ),
