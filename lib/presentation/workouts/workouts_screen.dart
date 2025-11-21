@@ -11,15 +11,7 @@ class WorkoutsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          elevation: 0,
-          title: const Text('אימונים'),
-        ),
-        body: SingleChildScrollView(
+      child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -59,7 +51,6 @@ class WorkoutsScreen extends StatelessWidget {
               ),
             ),
           ],
-        ),
         ),
       ),
     );

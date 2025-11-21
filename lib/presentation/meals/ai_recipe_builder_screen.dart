@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
 import 'package:muscleup/data/services/ai_service.dart';
+import 'package:muscleup/data/services/firestore_service.dart';
+import 'package:intl/intl.dart';
 
 class AIRecipeBuilderScreen extends StatefulWidget {
   const AIRecipeBuilderScreen({super.key});
@@ -15,12 +17,15 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
   final _formKey = GlobalKey<FormState>();
   final _ingredientsController = TextEditingController();
   final _aiService = AIService();
+  final _firestoreService = FirestoreService();
 
   bool _isLoading = false;
   bool _isGenerating = false;
   bool _isGeneratingImage = false;
+  bool _isSaving = false;
   Map<String, dynamic>? _generatedRecipe;
   String? _errorMessage;
+  String? _successMessage;
 
   String? _selectedNutritionalGoal;
 
@@ -226,6 +231,207 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
             duration: const Duration(seconds: 5),
           ),
         );
+      }
+    }
+  }
+
+  Future<void> _saveRecipe() async {
+    if (_generatedRecipe == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('אין מתכון לשמירה'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated || authState.user.email == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('משתמש לא מחובר'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+      _successMessage = null;
+    });
+
+    try {
+      // Save recipe to recipes collection
+      final recipeId = await _firestoreService.saveRecipe(
+        userEmail: authState.user.email!,
+        recipeData: {
+          'name': _generatedRecipe!['name'] ?? 'מתכון מ-AI',
+          'ingredients': _generatedRecipe!['ingredients'] ?? [],
+          'instructions': _generatedRecipe!['instructions'] ?? '',
+          'prep_time': _generatedRecipe!['prep_time'],
+          'servings': _generatedRecipe!['servings'],
+          'difficulty': _generatedRecipe!['difficulty'],
+          'calories_per_serving': _generatedRecipe!['calories_per_serving'],
+          'protein_grams': _generatedRecipe!['protein_grams'],
+          'carbs_grams': _generatedRecipe!['carbs_grams'],
+          'fat_grams': _generatedRecipe!['fat_grams'],
+          'image_url': _generatedRecipe!['image_url'],
+          'category': _generatedRecipe!['category'] ?? 'main_meals',
+          'tips': _generatedRecipe!['tips'],
+        },
+      );
+
+      // Add to favorites automatically
+      await _firestoreService.addToFavorites(
+        userEmail: authState.user.email!,
+        recipeId: recipeId,
+      );
+
+      setState(() {
+        _successMessage = 'המתכון נשמר בהצלחה במועדפים!';
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('המתכון נשמר בהצלחה במועדפים!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'שגיאה בשמירת המתכון: $e';
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה בשמירת המתכון: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveMeal() async {
+    if (_generatedRecipe == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('אין מתכון לשמירה'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated || authState.user.email == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('משתמש לא מחובר'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+      _successMessage = null;
+    });
+
+    try {
+      final now = DateTime.now();
+      final dateString = DateFormat('yyyy-MM-dd').format(now);
+      final timestampString = now.toIso8601String();
+
+      // Build meal description from recipe
+      final recipeName = _generatedRecipe!['name'] ?? 'מתכון מ-AI';
+      final ingredients = _generatedRecipe!['ingredients'] != null
+          ? (_generatedRecipe!['ingredients'] as List).join(', ')
+          : '';
+      final instructions = _generatedRecipe!['instructions'] ?? '';
+      
+      final mealDescription = '$recipeName\n\nמרכיבים: $ingredients\n\nהוראות הכנה: $instructions';
+
+      // Determine meal type based on time of day
+      String mealType;
+      final hour = now.hour;
+      if (hour >= 6 && hour < 11) {
+        mealType = 'ארוחת בוקר';
+      } else if (hour >= 11 && hour < 15) {
+        mealType = 'ארוחת צהריים';
+      } else if (hour >= 15 && hour < 19) {
+        mealType = 'ארוחת ביניים';
+      } else {
+        mealType = 'ארוחת ערב';
+      }
+
+      await _firestoreService.addMealEntry(
+        userEmail: authState.user.email!,
+        mealDescription: mealDescription,
+        date: dateString,
+        mealType: mealType,
+        estimatedCalories: _generatedRecipe!['calories_per_serving'] != null
+            ? (_generatedRecipe!['calories_per_serving'] as num).toInt()
+            : null,
+        proteinGrams: _generatedRecipe!['protein_grams'] != null
+            ? (_generatedRecipe!['protein_grams'] as num).toDouble()
+            : null,
+        carbsGrams: _generatedRecipe!['carbs_grams'] != null
+            ? (_generatedRecipe!['carbs_grams'] as num).toDouble()
+            : null,
+        fatGrams: _generatedRecipe!['fat_grams'] != null
+            ? (_generatedRecipe!['fat_grams'] as num).toDouble()
+            : null,
+        mealImage: _generatedRecipe!['image_url'],
+        mealTimestamp: timestampString,
+        sharedWithCoach: true,
+      );
+
+      setState(() {
+        _successMessage = 'הארוחה נשמרה בהצלחה! ניתן למצוא אותה בהיסטוריית הארוחות';
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('הארוחה נשמרה בהצלחה! ניתן למצוא אותה בהיסטוריית הארוחות'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'שגיאה בשמירת הארוחה: $e';
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה בשמירת הארוחה: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
       }
     }
   }
@@ -658,6 +864,106 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
                                       ],
                                     ),
                                   ),
+                                const SizedBox(height: 24),
+
+                                // Save Recipe Button
+                                ElevatedButton.icon(
+                                  onPressed: _isSaving ? null : _saveRecipe,
+                                  icon: _isSaving
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        )
+                                      : const Icon(Icons.bookmark),
+                                  label: Text(_isSaving ? 'שומר...' : 'שמור מתכון למועדפים'),
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 18),
+                                    minimumSize: const Size(double.infinity, 50),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    backgroundColor: Colors.pink[600],
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+
+                                // Save Meal Button
+                                ElevatedButton.icon(
+                                  onPressed: _isSaving ? null : _saveMeal,
+                                  icon: _isSaving
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        )
+                                      : const Icon(Icons.save),
+                                  label: Text(_isSaving ? 'שומר...' : 'שמור ארוחה להיסטוריה'),
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 18),
+                                    minimumSize: const Size(double.infinity, 50),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    backgroundColor: Colors.green[600],
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+
+                                // Success/Error Messages
+                                if (_successMessage != null) ...[
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green[50],
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.green[300]!),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.check_circle_outline, color: Colors.green[700]),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            _successMessage!,
+                                            style: TextStyle(color: Colors.green[700]),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                if (_errorMessage != null) ...[
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red[50],
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.red[300]!),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.error_outline, color: Colors.red[700]),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            _errorMessage!,
+                                            style: TextStyle(color: Colors.red[700]),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),

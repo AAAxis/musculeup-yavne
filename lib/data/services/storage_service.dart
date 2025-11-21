@@ -86,6 +86,26 @@ class StorageService {
     }
   }
 
+  /// Upload a generic file to Firebase Storage
+  /// Returns the download URL of the uploaded file
+  Future<String> uploadFile(String filePath, Uint8List fileBytes, {String? contentType}) async {
+    try {
+      final Reference ref = _storage.ref().child(filePath);
+      
+      final UploadTask uploadTask = ref.putData(
+        fileBytes,
+        SettableMetadata(contentType: contentType ?? 'image/jpeg'),
+      );
+
+      final TaskSnapshot snapshot = await uploadTask;
+      final String downloadUrl = await snapshot.ref.getDownloadURL();
+
+      return downloadUrl;
+    } catch (e) {
+      throw Exception('Failed to upload file: $e');
+    }
+  }
+
   /// Delete a file from Firebase Storage
   Future<void> deleteFile(String filePath) async {
     try {

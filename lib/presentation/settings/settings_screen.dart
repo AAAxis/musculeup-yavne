@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
+import 'package:muscleup/presentation/language/bloc/language_bloc.dart';
 import 'package:muscleup/presentation/profile/profile_screen.dart';
 import 'package:muscleup/presentation/settings/notifications_screen.dart';
 import 'package:muscleup/presentation/export/export_screen.dart';
@@ -15,7 +16,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-
   Future<void> _launchURL(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
@@ -23,8 +23,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('לא ניתן לפתוח את הקישור'),
+          SnackBar(
+            content: const Text('לא ניתן לפתוח קישור'),
             backgroundColor: Colors.red,
           ),
         );
@@ -32,14 +32,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _showLogoutDialog() {
+      void _showLogoutDialog() {
+    final languageBloc = context.read<LanguageBloc>();
+    final currentLanguage = languageBloc.state.language;
     showDialog(
       context: context,
       builder: (context) => Directionality(
-        textDirection: ui.TextDirection.rtl,
+        textDirection: currentLanguage == 'he' ? ui.TextDirection.rtl : ui.TextDirection.ltr,
         child: AlertDialog(
           title: const Text('יציאה מהחשבון'),
-          content: const Text('האם אתה בטוח שברצונך להתנתק?'),
+          content: const Text('האם אתה בטוח שברצונך להתנתק מהחשבון?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -60,6 +62,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +130,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.file_download_outlined),
                   title: const Text('ייצוא דוחות'),
-                  subtitle: const Text('הפק דוחות מקצועיים ושלח למאמן'),
+                  subtitle: const Text('צור דוחות מקצועיים ושלח למאמן'),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -150,31 +153,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.info_outline),
                   title: const Text('אודות MuscleUp'),
-                  subtitle: const Text('גרסה 1.0.0'),
-                  onTap: () {
-                    showAboutDialog(
-                      context: context,
-                      applicationName: 'MuscleUp',
-                      applicationVersion: '1.0.0',
-                      applicationIcon: Icon(
-                        Icons.fitness_center,
-                        size: 48,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      children: [
-                        const Text(
-                          'בן הלוויה האישי שלך לכושר למעקב אחר אימונים, ארוחות והתקדמות.',
-                        ),
-                      ],
-                    );
-                  },
+                  subtitle: const Text('גרסה 1.4.0+3'),
                 ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.article_outlined),
-                  title: const Text('תנאי שימוש'),
+                  title: const Text('תנאי שירות'),
                   onTap: () {
-                    _launchURL('https://muscle-up-main-green.vercel.app/terms');
+                    _launchURL('https://muscle-up-main-green.vercel.app/termsofservice');
                   },
                 ),
                 const Divider(height: 1),
@@ -183,14 +169,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('מדיניות פרטיות'),
                   onTap: () {
                     _launchURL('https://muscle-up-main-green.vercel.app/privacy');
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.help_outline),
-                  title: const Text('עזרה ותמיכה'),
-                  onTap: () {
-                    _launchURL('https://muscle-up-main-green.vercel.app/support');
                   },
                 ),
               ],
@@ -224,7 +202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         const SizedBox(width: 12),
                         const Text(
-                          'יציאה מהחשבון',
+                          'התנתקות',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w600,
@@ -234,7 +212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'האם אתה בטוח שברצונך להתנתק מהחשבון?',
+                      'האם אתה בטוח שברצונך להתנתק?',
                       style: TextStyle(
                         fontSize: 14,
                         color: isDark ? Colors.grey[400] : Colors.grey[600],

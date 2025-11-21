@@ -1,5 +1,8 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
+import 'package:muscleup/data/services/firestore_service.dart';
 
 class FavoriteRecipesScreen extends StatefulWidget {
   const FavoriteRecipesScreen({super.key});
@@ -9,11 +12,57 @@ class FavoriteRecipesScreen extends StatefulWidget {
 }
 
 class _FavoriteRecipesScreenState extends State<FavoriteRecipesScreen> {
-  bool _isLoading = false;
+  final _firestoreService = FirestoreService();
+  bool _isLoading = true;
   String _selectedFilter = 'all';
 
-  // TODO: Load from Firebase
   final List<Map<String, dynamic>> _favoriteRecipes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFavoriteRecipes();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload favorites when screen becomes visible again
+    _loadFavoriteRecipes();
+  }
+
+  Future<void> _loadFavoriteRecipes() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is AuthAuthenticated && authState.user.email != null) {
+        final recipes = await _firestoreService.getFavoriteRecipes(authState.user.email!);
+        if (mounted) {
+          setState(() {
+            _favoriteRecipes.clear();
+            _favoriteRecipes.addAll(recipes);
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading favorite recipes: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   final List<Map<String, dynamic>> _filters = [
     {'key': 'all', 'label': 'הכל', 'icon': Icons.public},
@@ -306,8 +355,34 @@ class _FavoriteRecipesScreenState extends State<FavoriteRecipesScreen> {
                     Icons.favorite,
                     color: Colors.red,
                   ),
-                  onPressed: () {
-                    // TODO: Remove from favorites
+                  onPressed: () async {
+                    final authState = context.read<AuthBloc>().state;
+                    if (authState is AuthAuthenticated && authState.user.email != null) {
+                      try {
+                        await _firestoreService.removeFromFavorites(
+                          userEmail: authState.user.email!,
+                          recipeId: recipe['id'] as String,
+                        );
+                        await _loadFavoriteRecipes();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('המתכון הוסר מהמועדפים'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('שגיאה בהסרת המתכון: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    }
                   },
                 ),
               ),

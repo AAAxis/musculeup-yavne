@@ -14,17 +14,23 @@ class MainNavigation extends StatefulWidget {
 
   @override
   State<MainNavigation> createState() => _MainNavigationState();
+
+  static void switchToTab(int index) {
+    _MainNavigationState.navigateToTab(index);
+  }
 }
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
   final GlobalKey _homeKey = GlobalKey();
+  static _MainNavigationState? _instance;
 
   final List<Widget> _screens = [];
 
   @override
   void initState() {
     super.initState();
+    _instance = this;
     _screens.addAll([
       HomeScreen(key: _homeKey),
       const BoostScreen(),
@@ -33,6 +39,18 @@ class _MainNavigationState extends State<MainNavigation> {
       const LogScreen(),
       const SettingsScreen(),
     ]);
+  }
+
+  @override
+  void dispose() {
+    _instance = null;
+    super.dispose();
+  }
+
+  static void navigateToTab(int index) {
+    _instance?.setState(() {
+      _instance!._currentIndex = index;
+    });
   }
 
   @override

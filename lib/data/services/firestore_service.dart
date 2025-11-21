@@ -178,5 +178,324 @@ class FirestoreService {
       throw Exception('Failed to create coach notification: $e');
     }
   }
+
+  // Add weight entry
+  Future<void> addWeightEntry({
+    required String userEmail,
+    required double weight,
+    required String date,
+    required String time,
+  }) async {
+    try {
+      await _firestore.collection('weight_entries').add({
+        'user_email': userEmail,
+        'weight': weight,
+        'date': date,
+        'time': time,
+        'created_date': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw Exception('Failed to add weight entry: $e');
+    }
+  }
+
+  // Add water tracking entry
+  Future<void> addWaterEntry({
+    required String userEmail,
+    required int amountMl,
+    required String date,
+    required String time,
+    required String containerType,
+    int? dailyGoalMl,
+  }) async {
+    try {
+      await _firestore.collection('waterTracking').add({
+        'user_email': userEmail,
+        'amount_ml': amountMl,
+        'date': date,
+        'time_logged': time,
+        'container_type': containerType,
+        if (dailyGoalMl != null) 'daily_goal_ml': dailyGoalMl,
+        'shared_with_coach': false,
+        'viewed_by_coach': false,
+        'created_date': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw Exception('Failed to add water entry: $e');
+    }
+  }
+
+  // Get water entries for a user
+  Future<List<Map<String, dynamic>>> getWaterEntries(String userEmail, {int limit = 100}) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('waterTracking')
+          .where('user_email', isEqualTo: userEmail)
+          .orderBy('created_date', descending: true)
+          .limit(limit)
+          .get();
+      
+      return querySnapshot.docs.map((doc) => {
+        'id': doc.id,
+        ...doc.data(),
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to get water entries: $e');
+    }
+  }
+
+  // Get weight entries for a user
+  Future<List<Map<String, dynamic>>> getWeightEntries(String userEmail, {int limit = 100}) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('weight_entries')
+          .where('user_email', isEqualTo: userEmail)
+          .orderBy('created_date', descending: true)
+          .limit(limit)
+          .get();
+      
+      return querySnapshot.docs.map((doc) => {
+        'id': doc.id,
+        ...doc.data(),
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to get weight entries: $e');
+    }
+  }
+
+  // Add meal/calorie tracking entry
+  Future<void> addMealEntry({
+    required String userEmail,
+    required String mealDescription,
+    required String date,
+    String? mealType,
+    int? estimatedCalories,
+    double? proteinGrams,
+    double? carbsGrams,
+    double? fatGrams,
+    String? mealImage,
+    String? mealTimestamp,
+    String? coachNote,
+    bool sharedWithCoach = false,
+  }) async {
+    try {
+      await _firestore.collection('calorie_tracking').add({
+        'user_email': userEmail,
+        'date': date,
+        'meal_type': mealType ?? 'ארוחה כללית',
+        'meal_description': mealDescription,
+        'meal_timestamp': mealTimestamp ?? FieldValue.serverTimestamp(),
+        'estimated_calories': estimatedCalories,
+        'protein_grams': proteinGrams,
+        'carbs_grams': carbsGrams,
+        'fat_grams': fatGrams,
+        if (mealImage != null) 'meal_image': mealImage,
+        if (coachNote != null && coachNote.isNotEmpty) 'coach_note': coachNote,
+        'shared_with_coach': sharedWithCoach,
+        'viewed_by_coach': false,
+        'ai_assisted': true,
+        'created_date': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw Exception('Failed to add meal entry: $e');
+    }
+  }
+
+  // Get meal entries for a user
+  Future<List<Map<String, dynamic>>> getMealEntries(String userEmail, {int limit = 100}) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('calorie_tracking')
+          .where('user_email', isEqualTo: userEmail)
+          .orderBy('created_date', descending: true)
+          .limit(limit)
+          .get();
+      
+      return querySnapshot.docs.map((doc) => {
+        'id': doc.id,
+        ...doc.data(),
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to get meal entries: $e');
+    }
+  }
+
+  // Get workouts for a user
+  Future<List<Map<String, dynamic>>> getWorkouts(String userEmail, {int limit = 100}) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('workouts')
+          .where('created_by', isEqualTo: userEmail)
+          .orderBy('created_at', descending: true)
+          .limit(limit)
+          .get();
+      
+      return querySnapshot.docs.map((doc) => {
+        'id': doc.id,
+        ...doc.data(),
+      }).toList();
+    } catch (e) {
+      // If orderBy fails, try without it
+      try {
+        final querySnapshot = await _firestore
+            .collection('workouts')
+            .where('created_by', isEqualTo: userEmail)
+            .limit(limit)
+            .get();
+        
+        final workouts = querySnapshot.docs.map((doc) => {
+          'id': doc.id,
+          ...doc.data(),
+        }).toList();
+        
+        // Sort manually by date
+        workouts.sort((a, b) {
+          final dateA = a['date'] as String? ?? '';
+          final dateB = b['date'] as String? ?? '';
+          return dateB.compareTo(dateA);
+        });
+        
+        return workouts;
+      } catch (e2) {
+        throw Exception('Failed to get workouts: $e2');
+      }
+    }
+  }
+
+  // Save recipe to recipes collection
+  Future<String> saveRecipe({
+    required String userEmail,
+    required Map<String, dynamic> recipeData,
+  }) async {
+    try {
+      final recipeDoc = await _firestore.collection('recipes').add({
+        ...recipeData,
+        'creator_email': userEmail,
+        'is_public': false,
+        'created_date': FieldValue.serverTimestamp(),
+      });
+      return recipeDoc.id;
+    } catch (e) {
+      throw Exception('Failed to save recipe: $e');
+    }
+  }
+
+  // Add recipe to favorites
+  Future<void> addToFavorites({
+    required String userEmail,
+    required String recipeId,
+  }) async {
+    try {
+      // Check if already favorited
+      final existing = await _firestore
+          .collection('favoriteRecipes')
+          .where('user_email', isEqualTo: userEmail)
+          .where('recipe_id', isEqualTo: recipeId)
+          .get();
+
+      if (existing.docs.isEmpty) {
+        await _firestore.collection('favoriteRecipes').add({
+          'user_email': userEmail,
+          'recipe_id': recipeId,
+          'created_date': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      throw Exception('Failed to add to favorites: $e');
+    }
+  }
+
+  // Remove recipe from favorites
+  Future<void> removeFromFavorites({
+    required String userEmail,
+    required String recipeId,
+  }) async {
+    try {
+      final favorites = await _firestore
+          .collection('favoriteRecipes')
+          .where('user_email', isEqualTo: userEmail)
+          .where('recipe_id', isEqualTo: recipeId)
+          .get();
+
+      for (var doc in favorites.docs) {
+        await doc.reference.delete();
+      }
+    } catch (e) {
+      throw Exception('Failed to remove from favorites: $e');
+    }
+  }
+
+  // Get favorite recipes for user
+  Future<List<Map<String, dynamic>>> getFavoriteRecipes(String userEmail) async {
+    try {
+      final favorites = await _firestore
+          .collection('favoriteRecipes')
+          .where('user_email', isEqualTo: userEmail)
+          .get();
+
+      if (favorites.docs.isEmpty) {
+        return [];
+      }
+
+      final recipeIds = favorites.docs.map((doc) => doc.data()['recipe_id'] as String).toList();
+      final recipes = <Map<String, dynamic>>[];
+
+      for (var recipeId in recipeIds) {
+        try {
+          final recipeDoc = await _firestore.collection('recipes').doc(recipeId).get();
+
+          if (recipeDoc.exists) {
+            final recipeData = recipeDoc.data()!;
+            recipeData['id'] = recipeDoc.id;
+            recipes.add(recipeData);
+          }
+        } catch (e) {
+          print('Error loading recipe $recipeId: $e');
+        }
+      }
+
+      return recipes;
+    } catch (e) {
+      throw Exception('Failed to get favorite recipes: $e');
+    }
+  }
+
+  // Get all recipes (public and user's recipes)
+  Future<List<Map<String, dynamic>>> getRecipes(String? userEmail) async {
+    try {
+      final publicRecipes = await _firestore
+          .collection('recipes')
+          .where('is_public', isEqualTo: true)
+          .get();
+
+      final recipes = <Map<String, dynamic>>[];
+      
+      for (var doc in publicRecipes.docs) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        recipes.add(data);
+      }
+
+      if (userEmail != null) {
+        final userRecipes = await _firestore
+            .collection('recipes')
+            .where('creator_email', isEqualTo: userEmail)
+            .get();
+
+        for (var doc in userRecipes.docs) {
+          // Avoid duplicates
+          if (!recipes.any((r) => r['id'] == doc.id)) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            recipes.add(data);
+          }
+        }
+      }
+
+      return recipes;
+    } catch (e) {
+      throw Exception('Failed to get recipes: $e');
+    }
+  }
 }
 

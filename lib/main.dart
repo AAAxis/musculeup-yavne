@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -7,13 +8,18 @@ import 'package:muscleup/presentation/navigation/main_navigation.dart';
 import 'package:muscleup/presentation/onboarding/onboarding_flow.dart';
 import 'package:muscleup/presentation/contract/contract_verification_screen.dart';
 import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
+import 'package:muscleup/presentation/language/bloc/language_bloc.dart';
+import 'package:muscleup/presentation/language/bloc/language_state.dart';
 import 'package:muscleup/core/di/service_locator.dart';
 import 'package:muscleup/data/services/firestore_service.dart';
 import 'package:muscleup/data/services/signature_migration_service.dart';
 import 'package:muscleup/data/services/app_tracking_service.dart';
 import 'package:muscleup/data/services/ai_service.dart';
+import 'package:muscleup/data/services/language_service.dart';
 import 'package:muscleup/data/models/user_model.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,6 +44,11 @@ void main() async {
   // Setup dependency injection
   setupServiceLocator();
 
+  // Load saved language preference
+  final languageService = getIt<LanguageService>();
+  final savedLanguage = await languageService.getLanguage() ?? 'he';
+  final locale = savedLanguage == 'en' ? const Locale('en', 'US') : const Locale('he', 'IL');
+
   // Initialize date formatting for Hebrew locale (required for receipt generation)
   await _initializeDateFormatting();
 
@@ -50,7 +61,7 @@ void main() async {
   // Run signature migration in background
   _runSignatureMigration();
 
-  runApp(const MyApp());
+  runApp(MyApp(locale: locale));
 }
 
 /// Initialize date formatting for Hebrew locale
@@ -105,19 +116,51 @@ void _runSignatureMigration() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final Locale locale;
+  
+  const MyApp({super.key, required this.locale});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => getIt<AuthBloc>()..add(const AuthCheckRequested()),
-      child: MaterialApp(
-        title: 'MuscleUp',
-        debugShowCheckedModeBanner: false,
-        themeMode: ThemeMode.system,
-        theme: _buildLightTheme(),
-        darkTheme: _buildDarkTheme(),
-        home: const AuthWrapper(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (context) => getIt<AuthBloc>()..add(const AuthCheckRequested()),
+        ),
+        BlocProvider(
+          create: (context) => getIt<LanguageBloc>(),
+        ),
+      ],
+      child: BlocBuilder<LanguageBloc, LanguageState>(
+        builder: (context, languageState) {
+          final currentLocale = languageState.isEnglish 
+              ? const Locale('en', 'US') 
+              : const Locale('he', 'IL');
+          
+          return Directionality(
+            textDirection: languageState.isEnglish 
+                ? ui.TextDirection.ltr 
+                : ui.TextDirection.rtl,
+            child: MaterialApp(
+              title: 'MuscleUp',
+              debugShowCheckedModeBanner: false,
+              localizationsDelegates: [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: const [
+                Locale('he', 'IL'),
+                Locale('en', 'US'),
+              ],
+              locale: currentLocale,
+              themeMode: ThemeMode.system,
+              theme: _buildLightTheme(),
+              darkTheme: _buildDarkTheme(),
+              home: const AuthWrapper(),
+            ),
+          );
+        },
       ),
     );
   }

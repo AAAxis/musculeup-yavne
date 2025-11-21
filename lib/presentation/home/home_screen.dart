@@ -12,6 +12,10 @@ import 'package:muscleup/presentation/home/widgets/quick_actions_card.dart';
 import 'package:muscleup/presentation/home/widgets/progress_card.dart';
 import 'package:muscleup/presentation/home/widgets/recent_workouts_card.dart';
 import 'package:muscleup/presentation/boost/boost_screen.dart';
+import 'package:muscleup/presentation/weight/weight_update_screen.dart';
+import 'package:muscleup/presentation/water/water_tracking_screen.dart';
+import 'package:muscleup/presentation/meals/meals_screen.dart';
+import 'package:muscleup/presentation/navigation/main_navigation.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -96,6 +100,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _navigateToWeightUpdate() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const WeightUpdateScreen(),
+      ),
+    );
+  }
+
+  void _navigateToAddMeal() {
+    // Switch to meals tab (index 2)
+    MainNavigation.switchToTab(2);
+  }
+
+  void _navigateToWaterTracking() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const WaterTrackingScreen(),
+      ),
+    );
+  }
+
   void _navigateToBoostScreen() {
     // Navigate to Boost screen (index 1 in main navigation)
     // We'll use a simple navigation for now
@@ -151,33 +178,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               child: Column(
                                 children: [
                                   QuickActionsCard(
-                                    onWeightUpdateTap: () {
-                                      // TODO: Navigate to weight update
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                          content: Text('עדכון משקל בקרוב!'),
-                                        ),
-                                      );
-                                    },
-                                    onAddMealTap: () {
-                                      // TODO: Navigate to add meal
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                          content: Text('הוספת ארוחה בקרוב!'),
-                                        ),
-                                      );
-                                    },
-                                    onWaterDocTap: () {
-                                      // TODO: Navigate to water documentation
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                          content: Text('תיעוד מים בקרוב!'),
-                                        ),
-                                      );
-                                    },
+                                    onWeightUpdateTap: _navigateToWeightUpdate,
+                                    onAddMealTap: _navigateToAddMeal,
+                                    onWaterDocTap: _navigateToWaterTracking,
                                     onProgressTrackingTap:
                                         _navigateToBoostScreen,
                                   ),
@@ -203,30 +206,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         return Column(
                           children: [
                             QuickActionsCard(
-                              onWeightUpdateTap: () {
-                                // TODO: Navigate to weight update
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('עדכון משקל בקרוב!'),
-                                  ),
-                                );
-                              },
-                              onAddMealTap: () {
-                                // TODO: Navigate to add meal
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('הוספת ארוחה בקרוב!'),
-                                  ),
-                                );
-                              },
-                              onWaterDocTap: () {
-                                // TODO: Navigate to water documentation
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('תיעוד מים בקרוב!'),
-                                  ),
-                                );
-                              },
+                              onWeightUpdateTap: _navigateToWeightUpdate,
+                              onAddMealTap: _navigateToAddMeal,
+                              onWaterDocTap: _navigateToWaterTracking,
                               onProgressTrackingTap: _navigateToBoostScreen,
                             ),
                             const SizedBox(height: 24),
