@@ -107,8 +107,12 @@ class _ManualWorkoutBuilderScreenState
       final allExercises = _selectedExercises.map((ex) {
         final setsCount = ex['sets'] ?? 3;
         return {
-          'name': ex['name'] ?? '',
-          'category': ex['category'] ?? 'כוח',
+          'name': ex['name'] ?? ex['name_he'] ?? ex['name_en'] ?? '',
+          'name_he': ex['name_he'],
+          'name_en': ex['name_en'],
+          'exercise_id': ex['id'], // Store the exercise ID from exerciseDefinitions
+          'category': ex['category'] ?? 'Strength',
+          'muscle_group': ex['muscle_group'],
           'sets': List.generate(setsCount, (index) => {
             'repetitions': ex['reps'] ?? 0,
             'weight': ex['weight'] ?? 0,
@@ -117,7 +121,7 @@ class _ManualWorkoutBuilderScreenState
           }),
           'completed': false,
           'notes': ex['notes'] ?? '',
-          'video_url': '',
+          'video_url': ex['video_url'] ?? '',
         };
       }).toList();
 
@@ -167,17 +171,136 @@ class _ManualWorkoutBuilderScreenState
     }
   }
 
-  void _addExercise() {
+  void _addExercise() async {
+    final selectedExercise = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Directionality(
+          textDirection: ui.TextDirection.rtl,
+          child: _ExerciseSelectionScreen(),
+        ),
+      ),
+    );
+
+    if (selectedExercise != null && mounted) {
+      // Show configuration dialog for sets, reps, weight
+      _showExerciseConfigurationDialog(selectedExercise);
+    }
+  }
+
+  void _showExerciseConfigurationDialog(Map<String, dynamic> exercise) {
+    final setsController = TextEditingController(text: '3');
+    final repsController = TextEditingController(text: '10');
+    final weightController = TextEditingController(text: exercise['default_weight']?.toString() ?? '0');
+    final notesController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) => Directionality(
         textDirection: ui.TextDirection.rtl,
-        child: _AddExerciseDialog(
-          onExerciseAdded: (exercise) {
-            setState(() {
-              _selectedExercises.add(exercise);
-            });
-          },
+        child: AlertDialog(
+          title: Text(exercise['name_he'] ?? exercise['name_en'] ?? 'תרגיל'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (exercise['description'] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      exercise['description'] ?? '',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    ),
+                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: setsController,
+                        decoration: const InputDecoration(
+                          labelText: 'סטים',
+                          prefixIcon: Icon(Icons.repeat),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextField(
+                        controller: repsController,
+                        decoration: const InputDecoration(
+                          labelText: 'חזרות',
+                          prefixIcon: Icon(Icons.repeat_one),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: weightController,
+                  decoration: const InputDecoration(
+                    labelText: 'משקל (ק"ג)',
+                    hintText: '0 אם ללא משקל',
+                    prefixIcon: Icon(Icons.scale),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: notesController,
+                  decoration: const InputDecoration(
+                    labelText: 'הערות (אופציונלי)',
+                    hintText: 'הוראות או הערות נוספות...',
+                    prefixIcon: Icon(Icons.note),
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                setsController.dispose();
+                repsController.dispose();
+                weightController.dispose();
+                notesController.dispose();
+                Navigator.pop(context);
+              },
+              child: const Text('ביטול'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final configuredExercise = {
+                  'id': exercise['id'],
+                  'name': exercise['name_he'] ?? exercise['name_en'] ?? '',
+                  'name_he': exercise['name_he'],
+                  'name_en': exercise['name_en'],
+                  'category': exercise['category'] ?? 'Strength',
+                  'muscle_group': exercise['muscle_group'],
+                  'sets': int.tryParse(setsController.text.trim()) ?? 3,
+                  'reps': int.tryParse(repsController.text.trim()) ?? 10,
+                  'weight': double.tryParse(weightController.text.trim()) ?? 0,
+                  'duration_seconds': 0,
+                  'notes': notesController.text.trim(),
+                };
+
+                setState(() {
+                  _selectedExercises.add(configuredExercise);
+                });
+
+                setsController.dispose();
+                repsController.dispose();
+                weightController.dispose();
+                notesController.dispose();
+                Navigator.pop(context);
+              },
+              child: const Text('הוסף'),
+            ),
+          ],
         ),
       ),
     );
@@ -429,7 +552,7 @@ class _ManualWorkoutBuilderScreenState
                                           ),
                                         ),
                                         title: Text(
-                                          exercise['name'] ?? '',
+                                          exercise['name'] ?? exercise['name_he'] ?? exercise['name_en'] ?? '',
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w600,
                                           ),
@@ -504,184 +627,270 @@ class _ManualWorkoutBuilderScreenState
   }
 }
 
-class _AddExerciseDialog extends StatefulWidget {
-  final Function(Map<String, dynamic>) onExerciseAdded;
-
-  const _AddExerciseDialog({required this.onExerciseAdded});
-
+class _ExerciseSelectionScreen extends StatefulWidget {
   @override
-  State<_AddExerciseDialog> createState() => _AddExerciseDialogState();
+  State<_ExerciseSelectionScreen> createState() => _ExerciseSelectionScreenState();
 }
 
-class _AddExerciseDialogState extends State<_AddExerciseDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _setsController = TextEditingController(text: '3');
-  final _repsController = TextEditingController(text: '10');
-  final _weightController = TextEditingController(text: '0');
-  final _notesController = TextEditingController();
+class _ExerciseSelectionScreenState extends State<_ExerciseSelectionScreen> {
+  final FirestoreService _firestoreService = FirestoreService();
+  final List<Map<String, dynamic>> _exercises = [];
+  final List<Map<String, dynamic>> _filteredExercises = [];
+  final TextEditingController _searchController = TextEditingController();
+  bool _isLoading = false;
+  String? _selectedMuscleGroup;
   String? _selectedCategory;
 
   @override
+  void initState() {
+    super.initState();
+    _loadExercises();
+  }
+
+  @override
   void dispose() {
-    _nameController.dispose();
-    _setsController.dispose();
-    _repsController.dispose();
-    _weightController.dispose();
-    _notesController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
-  void _saveExercise() {
-    if (!_formKey.currentState!.validate()) {
-      return;
+  Future<void> _loadExercises() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final exercises = await _firestoreService.getExercises(
+        muscleGroup: _selectedMuscleGroup,
+        category: _selectedCategory,
+      );
+      
+      setState(() {
+        _exercises.clear();
+        _exercises.addAll(exercises);
+        _filterExercises();
+      });
+    } catch (e) {
+      print('Error loading exercises: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('שגיאה בטעינת התרגילים: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
+  }
 
-    final exercise = {
-      'name': _nameController.text.trim(),
-      'category': _selectedCategory ?? 'כוח',
-      'sets': int.tryParse(_setsController.text.trim()) ?? 3,
-      'reps': int.tryParse(_repsController.text.trim()) ?? 10,
-      'weight': double.tryParse(_weightController.text.trim()) ?? 0,
-      'duration_seconds': 0,
-      'notes': _notesController.text.trim(),
-    };
-
-    widget.onExerciseAdded(exercise);
-    Navigator.pop(context);
+  void _filterExercises() {
+    final searchTerm = _searchController.text.toLowerCase();
+    
+    setState(() {
+      _filteredExercises.clear();
+      _filteredExercises.addAll(_exercises.where((exercise) {
+        final nameHe = (exercise['name_he'] ?? '').toString().toLowerCase();
+        final nameEn = (exercise['name_en'] ?? '').toString().toLowerCase();
+        final muscleGroup = (exercise['muscle_group'] ?? '').toString().toLowerCase();
+        final category = (exercise['category'] ?? '').toString().toLowerCase();
+        
+        if (searchTerm.isEmpty) {
+          return true;
+        }
+        
+        return nameHe.contains(searchTerm) ||
+            nameEn.contains(searchTerm) ||
+            muscleGroup.contains(searchTerm) ||
+            category.contains(searchTerm);
+      }).toList());
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('הוסף תרגיל'),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'שם התרגיל',
-                  hintText: 'לדוגמה: סקוואט',
-                  prefixIcon: Icon(Icons.fitness_center),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'אנא הזן שם תרגיל';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'קטגוריה',
-                  prefixIcon: Icon(Icons.category),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'כוח', child: Text('כוח')),
-                  DropdownMenuItem(value: 'קרדיו', child: Text('קרדיו')),
-                  DropdownMenuItem(value: 'גמישות', child: Text('גמישות')),
-                  DropdownMenuItem(value: 'ליבה', child: Text('ליבה')),
-                  DropdownMenuItem(value: 'אחר', child: Text('אחר')),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategory = value;
-                  });
-                },
-                validator: (value) {
-                  if (value == null) {
-                    return 'אנא בחר קטגוריה';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _setsController,
-                      decoration: const InputDecoration(
-                        labelText: 'סטים',
-                        prefixIcon: Icon(Icons.repeat),
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'נדרש';
-                        }
-                        final sets = int.tryParse(value);
-                        if (sets == null || sets < 1) {
-                          return 'מספר תקף';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _repsController,
-                      decoration: const InputDecoration(
-                        labelText: 'חזרות',
-                        prefixIcon: Icon(Icons.repeat_one),
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'נדרש';
-                        }
-                        final reps = int.tryParse(value);
-                        if (reps == null || reps < 1) {
-                          return 'מספר תקף';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _weightController,
-                decoration: const InputDecoration(
-                  labelText: 'משקל (ק"ג)',
-                  hintText: '0 אם ללא משקל',
-                  prefixIcon: Icon(Icons.scale),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _notesController,
-                decoration: const InputDecoration(
-                  labelText: 'הערות (אופציונלי)',
-                  hintText: 'הוראות או הערות נוספות...',
-                  prefixIcon: Icon(Icons.note),
-                ),
-                maxLines: 2,
-              ),
-            ],
-          ),
-        ),
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        title: const Text('בחר תרגיל'),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('ביטול'),
-        ),
-        ElevatedButton(
-          onPressed: _saveExercise,
-          child: const Text('הוסף'),
-        ),
-      ],
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                // Search and filters
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'חפש תרגיל...',
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          _filterExercises();
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _selectedMuscleGroup,
+                              decoration: InputDecoration(
+                                labelText: 'קבוצת שרירים',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                              items: [
+                                const DropdownMenuItem(value: null, child: Text('הכל')),
+                                const DropdownMenuItem(value: 'Chest', child: Text('חזה')),
+                                const DropdownMenuItem(value: 'Back', child: Text('גב')),
+                                const DropdownMenuItem(value: 'Legs', child: Text('רגליים')),
+                                const DropdownMenuItem(value: 'Shoulders', child: Text('כתפיים')),
+                                const DropdownMenuItem(value: 'Biceps', child: Text('בייספס')),
+                                const DropdownMenuItem(value: 'Triceps', child: Text('טריצפס')),
+                                const DropdownMenuItem(value: 'Core', child: Text('ליבה')),
+                                const DropdownMenuItem(value: 'Full Body', child: Text('מלא גוף')),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedMuscleGroup = value;
+                                });
+                                _loadExercises();
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _selectedCategory,
+                              decoration: InputDecoration(
+                                labelText: 'קטגוריה',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                              items: [
+                                const DropdownMenuItem(value: null, child: Text('הכל')),
+                                const DropdownMenuItem(value: 'Strength', child: Text('כוח')),
+                                const DropdownMenuItem(value: 'Cardio', child: Text('קרדיו')),
+                                const DropdownMenuItem(value: 'Mobility', child: Text('גמישות')),
+                                const DropdownMenuItem(value: 'Functional', child: Text('פונקציונלי')),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedCategory = value;
+                                });
+                                _loadExercises();
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                // Exercises list
+                Expanded(
+                  child: _filteredExercises.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.fitness_center_outlined, size: 64, color: Colors.grey[400]),
+                              const SizedBox(height: 16),
+                              Text(
+                                'אין תרגילים זמינים',
+                                style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _filteredExercises.length,
+                          itemBuilder: (context, index) {
+                            final exercise = _filteredExercises[index];
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.green[100],
+                                  child: Icon(
+                                    Icons.fitness_center,
+                                    color: Colors.green[600],
+                                    size: 20,
+                                  ),
+                                ),
+                                title: Text(
+                                  exercise['name_he'] ?? exercise['name_en'] ?? '',
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (exercise['name_en'] != null && exercise['name_he'] != null)
+                                      Text(
+                                        exercise['name_en'] ?? '',
+                                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                      ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        if (exercise['muscle_group'] != null)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green[100],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              exercise['muscle_group'] ?? '',
+                                              style: TextStyle(fontSize: 11, color: Colors.green[800]),
+                                            ),
+                                          ),
+                                        if (exercise['category'] != null) ...[
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.blue[100],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              exercise['category'] ?? '',
+                                              style: TextStyle(fontSize: 11, color: Colors.blue[800]),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                                onTap: () {
+                                  Navigator.pop(context, exercise);
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
     );
   }
 }

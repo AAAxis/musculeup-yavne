@@ -132,6 +132,40 @@ class _WaterTrackingScreenState extends State<WaterTrackingScreen> with SingleTi
     }
   }
 
+  Future<void> _deleteWaterEntry(String entryId) async {
+    try {
+      await _firestoreService.deleteWaterEntry(entryId);
+      
+      // Remove from local list
+      setState(() {
+        _waterEntries.removeWhere((entry) => entry['id'] == entryId);
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('רישום המים נמחק בהצלחה'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error deleting water entry: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה במחיקת רישום המים: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        // Reload entries on error
+        _loadWaterEntries();
+      }
+    }
+  }
+
   int _getTodayTotal() {
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     return _waterEntries
@@ -824,17 +858,64 @@ class _WaterTrackingScreenState extends State<WaterTrackingScreen> with SingleTi
                   ),
                   subtitle: Text('סה"כ: ${(dayTotal / 1000).toStringAsFixed(1)}L'),
                   leading: const Icon(Icons.water_drop, color: Colors.blue),
-                  children: entries.map((entry) {
+                  children: entries.asMap().entries.map((entryMap) {
+                    final index = entryMap.key;
+                    final entry = entryMap.value;
+                    final entryId = entry['id'] as String?;
                     final time = entry['time_logged'] as String? ?? '';
                     final amount = entry['amount_ml'] as int? ?? 0;
                     final container = entry['container_type'] as String? ?? '';
-                    return ListTile(
-                      leading: const Icon(Icons.access_time, size: 20),
-                      title: Text('$amount מ"ל - $container'),
-                      subtitle: Text(time),
-                      trailing: entry['photo_url'] != null
-                          ? const Icon(Icons.camera_alt, size: 20, color: Colors.blue)
-                          : null,
+                    
+                    return Dismissible(
+                      key: Key(entryId ?? 'water_$index'),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        margin: const EdgeInsets.only(bottom: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        child: const Icon(
+                          Icons.delete,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      confirmDismiss: (direction) async {
+                        return await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('מחיקת רישום מים'),
+                            content: const Text('האם אתה בטוח שברצונך למחוק את הרישום הזה?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                child: const Text('ביטול'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(true),
+                                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                child: const Text('מחק'),
+                              ),
+                            ],
+                          ),
+                        ) ?? false;
+                      },
+                      onDismissed: (direction) {
+                        if (entryId != null) {
+                          _deleteWaterEntry(entryId);
+                        }
+                      },
+                      child: ListTile(
+                        leading: const Icon(Icons.access_time, size: 20),
+                        title: Text('$amount מ"ל - $container'),
+                        subtitle: Text(time),
+                        trailing: entry['photo_url'] != null
+                            ? const Icon(Icons.camera_alt, size: 20, color: Colors.blue)
+                            : null,
+                      ),
                     );
                   }).toList(),
                 ),

@@ -40,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+
   @override
   void initState() {
     super.initState();
@@ -163,9 +164,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 24),
 
-                  // Coach Workouts Card
-                  const CoachWorkoutsCard(),
-                  const SizedBox(height: 24),
 
                   // Two Column Layout
                   LayoutBuilder(

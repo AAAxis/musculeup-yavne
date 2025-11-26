@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:muscleup/firebase_options.dart';
 import 'package:muscleup/presentation/auth/login_screen.dart';
 import 'package:muscleup/presentation/navigation/main_navigation.dart';
@@ -16,13 +17,19 @@ import 'package:muscleup/data/services/signature_migration_service.dart';
 import 'package:muscleup/data/services/app_tracking_service.dart';
 import 'package:muscleup/data/services/ai_service.dart';
 import 'package:muscleup/data/services/language_service.dart';
+import 'package:muscleup/data/services/notification_service.dart';
 import 'package:muscleup/data/models/user_model.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Register background message handler BEFORE initializing Firebase
+  // This must be a top-level function
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   // Initialize Firebase (with error handling for duplicate app)
   try {
@@ -57,6 +64,9 @@ void main() async {
 
   // Request App Tracking Transparency permission
   await _requestTrackingPermission();
+
+  // Initialize notification service
+  await _initializeNotificationService();
 
   // Run signature migration in background
   _runSignatureMigration();
@@ -100,6 +110,19 @@ Future<void> _requestTrackingPermission() async {
     print('📊 Tracking permission: ${isAuthorized ? 'Granted' : 'Denied'}');
   } catch (e) {
     print('❌ Failed to request tracking permission: $e');
+  }
+}
+
+/// Initialize notification service
+Future<void> _initializeNotificationService() async {
+  try {
+    final notificationService = NotificationService();
+    await notificationService.initialize();
+    await notificationService.start();
+    print('✅ Notification service initialized');
+  } catch (e) {
+    print('⚠️ Failed to initialize notification service: $e');
+    // Don't fail app startup if notification service fails
   }
 }
 
@@ -332,8 +355,28 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    // Listen to auth state changes and save FCM token when user becomes authenticated
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user != null) {
+        // User is authenticated, save FCM token
+        Future.delayed(const Duration(seconds: 1), () {
+          final notificationService = NotificationService();
+          notificationService.saveFCMTokenToFirestore();
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

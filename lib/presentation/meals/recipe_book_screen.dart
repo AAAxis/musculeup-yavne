@@ -1,5 +1,8 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
+import 'package:muscleup/data/services/firestore_service.dart';
 
 class RecipeBookScreen extends StatefulWidget {
   const RecipeBookScreen({super.key});
@@ -9,21 +12,95 @@ class RecipeBookScreen extends StatefulWidget {
 }
 
 class _RecipeBookScreenState extends State<RecipeBookScreen> {
+  final FirestoreService _firestoreService = FirestoreService();
   bool _isLoading = false;
   String _selectedFilter = 'all';
-
-  // TODO: Load from Firebase
   final List<Map<String, dynamic>> _recipes = [];
+  final List<Map<String, dynamic>> _filteredRecipes = [];
+  final TextEditingController _searchController = TextEditingController();
 
   final List<Map<String, dynamic>> _filters = [
     {'key': 'all', 'label': 'הכל', 'icon': Icons.public},
-    {'key': 'favorites', 'label': 'מועדפים', 'icon': Icons.star},
-    {'key': 'my_recipes', 'label': 'המתכונים שלי', 'icon': Icons.restaurant_menu},
     {'key': 'main_meals', 'label': 'ארוחות עיקריות', 'icon': Icons.restaurant},
     {'key': 'snacks', 'label': 'נשנושים', 'icon': Icons.cookie},
     {'key': 'shakes', 'label': 'שייקים', 'icon': Icons.local_drink},
     {'key': 'salads', 'label': 'סלטים', 'icon': Icons.eco},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecipes();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadRecipes() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final authState = context.read<AuthBloc>().state;
+      String? userEmail;
+      if (authState is AuthAuthenticated) {
+        userEmail = authState.user.email;
+      }
+
+      final recipes = await _firestoreService.getRecipes(userEmail);
+      
+      setState(() {
+        _recipes.clear();
+        _recipes.addAll(recipes);
+        _filterRecipes();
+      });
+    } catch (e) {
+      print('Error loading recipes: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('שגיאה בטעינת המתכונים: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _filterRecipes() {
+    final searchTerm = _searchController.text.toLowerCase();
+    
+    setState(() {
+      _filteredRecipes.clear();
+      _filteredRecipes.addAll(_recipes.where((recipe) {
+        // Filter by category
+        if (_selectedFilter != 'all') {
+          final category = recipe['category'] ?? '';
+          if (category != _selectedFilter) {
+            return false;
+          }
+        }
+        
+        // Filter by search term
+        if (searchTerm.isNotEmpty) {
+          final name = (recipe['name'] ?? '').toString().toLowerCase();
+          final ingredients = (recipe['ingredients'] ?? []).toString().toLowerCase();
+          if (!name.contains(searchTerm) && !ingredients.contains(searchTerm)) {
+            return false;
+          }
+        }
+        
+        return true;
+      }).toList());
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +172,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(24.0),
                         child: TextField(
+                          controller: _searchController,
                           decoration: InputDecoration(
                             hintText: 'חפש מתכון לפי שם או מרכיב...',
                             prefixIcon: const Icon(Icons.search),
@@ -103,8 +181,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                             ),
                           ),
                           onChanged: (value) {
-                            // TODO: Implement search functionality
-                            setState(() {});
+                            _filterRecipes();
                           },
                         ),
                       ),
@@ -151,6 +228,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                                 setState(() {
                                   _selectedFilter = filter['key'] as String;
                                 });
+                                _filterRecipes();
                               },
                               backgroundColor: Colors.white,
                               selectedColor: Colors.green[600],
@@ -165,7 +243,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                     const SizedBox(height: 16),
 
                     // Recipes List
-                    _recipes.isEmpty
+                    _filteredRecipes.isEmpty
                         ? Container(
                             decoration: BoxDecoration(
                               color: Theme.of(context).colorScheme.surface,
@@ -222,11 +300,11 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                               crossAxisCount: 2,
                               crossAxisSpacing: 16,
                               mainAxisSpacing: 16,
-                              childAspectRatio: 0.75,
+                              childAspectRatio: 0.72,
                             ),
-                            itemCount: _recipes.length,
+                            itemCount: _filteredRecipes.length,
                             itemBuilder: (context, index) {
-                              final recipe = _recipes[index];
+                              final recipe = _filteredRecipes[index];
                               return _buildRecipeCard(recipe);
                             },
                           ),
@@ -238,65 +316,192 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
   }
 
   Widget _buildRecipeCard(Map<String, dynamic> recipe) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(25),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return GestureDetector(
+      onTap: () {
+        _showRecipeDetails(recipe);
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(25),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
             ),
-            child: Container(
-              height: 120,
-              color: Colors.grey[300],
-              child: const Center(
-                child: Icon(Icons.image, size: 48, color: Colors.grey),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+              ),
+              child: Container(
+                height: 120,
+                color: Colors.grey[300],
+                child: recipe['image_url'] != null && recipe['image_url'].toString().isNotEmpty
+                    ? Image.network(
+                        recipe['image_url'],
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => const Center(
+                          child: Icon(Icons.image, size: 48, color: Colors.grey),
+                        ),
+                      )
+                    : const Center(
+                        child: Icon(Icons.restaurant, size: 48, color: Colors.grey),
+                      ),
               ),
             ),
-          ),
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  recipe['name'] ?? '',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Row(
+            // Content
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.access_time, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${recipe['prep_time'] ?? 0} דק\'',
-                      style: const TextStyle(fontSize: 12),
+                    Flexible(
+                      child: Text(
+                        recipe['name'] ?? '',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
+                    const SizedBox(height: 6),
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.access_time, size: 12, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              '${recipe['prep_time'] ?? 0} דק\'',
+                              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (recipe['calories_per_serving'] != null) ...[
+                            const SizedBox(width: 8),
+                            const Icon(Icons.local_fire_department, size: 12, color: Colors.orange),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                '${recipe['calories_per_serving']} קל\'',
+                                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (recipe['protein_grams'] != null) ...[
+                      const SizedBox(height: 4),
+                      Flexible(
+                        child: Text(
+                          'חלבון: ${recipe['protein_grams']}ג',
+                          style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRecipeDetails(Map<String, dynamic> recipe) {
+    showDialog(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: AlertDialog(
+          title: Text(recipe['name'] ?? 'מתכון'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (recipe['name_en'] != null)
+                  Text(
+                    recipe['name_en'] ?? '',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                const SizedBox(height: 16),
+                if (recipe['ingredients'] != null) ...[
+                  const Text(
+                    'מרכיבים:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  ...((recipe['ingredients'] as List?) ?? []).map((ingredient) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text('• $ingredient'),
+                  )),
+                  const SizedBox(height: 16),
+                ],
+                if (recipe['instructions'] != null) ...[
+                  const Text(
+                    'הוראות הכנה:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(recipe['instructions'] ?? ''),
+                  const SizedBox(height: 16),
+                ],
+                if (recipe['prep_time'] != null || recipe['calories_per_serving'] != null) ...[
+                  const Text(
+                    'מידע תזונתי:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  if (recipe['prep_time'] != null)
+                    Text('זמן הכנה: ${recipe['prep_time']} דקות'),
+                  if (recipe['servings'] != null)
+                    Text('מנות: ${recipe['servings']}'),
+                  if (recipe['calories_per_serving'] != null)
+                    Text('קלוריות למנה: ${recipe['calories_per_serving']}'),
+                  if (recipe['protein_grams'] != null)
+                    Text('חלבון: ${recipe['protein_grams']}ג'),
+                  if (recipe['carbs_grams'] != null)
+                    Text('פחמימות: ${recipe['carbs_grams']}ג'),
+                  if (recipe['fat_grams'] != null)
+                    Text('שומן: ${recipe['fat_grams']}ג'),
+                ],
+                if (recipe['tips'] != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'טיפים: ${recipe['tips']}',
+                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey[700]),
+                  ),
+                ],
               ],
             ),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('סגור'),
+            ),
+          ],
+        ),
       ),
     );
   }

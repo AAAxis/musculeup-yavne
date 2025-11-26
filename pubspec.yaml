@@ -1,7 +1,7 @@
 name: muscleup
 description: A Flutter fitness application
 publish_to: 'none'
-version: 1.4.0+3
+version: 1.4.1+8
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -44,6 +44,7 @@ dependencies:
   firebase_auth: ^5.3.3
   firebase_storage: ^12.3.4
   firebase_remote_config: ^5.1.6
+  firebase_messaging: ^15.1.3
   google_sign_in: ^6.2.2
   sign_in_with_apple: ^6.1.3
   cloud_firestore: ^5.5.1
@@ -57,9 +58,14 @@ dependencies:
   # File sharing and path
   share_plus: ^10.1.2
   path_provider: ^2.1.5
+  shared_preferences: ^2.2.2
   
   # Image Picker
   image_picker: ^1.1.2
+  
+  # Notifications
+  flutter_local_notifications: ^19.1.0
+  timezone: ^0.10.0
 
 dev_dependencies:
   flutter_test:

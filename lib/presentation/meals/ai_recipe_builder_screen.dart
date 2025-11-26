@@ -879,7 +879,7 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
                                           ),
                                         )
                                       : const Icon(Icons.bookmark),
-                                  label: Text(_isSaving ? 'שומר...' : 'שמור מתכון למועדפים'),
+                                  label: Text(_isSaving ? 'שומר...' : 'שמור למועדפים'),
                                   style: ElevatedButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(vertical: 18),
                                     minimumSize: const Size(double.infinity, 50),
@@ -887,32 +887,6 @@ class _AIRecipeBuilderScreenState extends State<AIRecipeBuilderScreen> {
                                       borderRadius: BorderRadius.circular(16),
                                     ),
                                     backgroundColor: Colors.pink[600],
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-
-                                // Save Meal Button
-                                ElevatedButton.icon(
-                                  onPressed: _isSaving ? null : _saveMeal,
-                                  icon: _isSaving
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                          ),
-                                        )
-                                      : const Icon(Icons.save),
-                                  label: Text(_isSaving ? 'שומר...' : 'שמור ארוחה להיסטוריה'),
-                                  style: ElevatedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 18),
-                                    minimumSize: const Size(double.infinity, 50),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    backgroundColor: Colors.green[600],
                                     foregroundColor: Colors.white,
                                   ),
                                 ),

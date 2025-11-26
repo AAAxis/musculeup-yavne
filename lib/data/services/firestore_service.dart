@@ -263,6 +263,24 @@ class FirestoreService {
     }
   }
 
+  // Delete water entry
+  Future<void> deleteWaterEntry(String entryId) async {
+    try {
+      await _firestore.collection('waterTracking').doc(entryId).delete();
+    } catch (e) {
+      throw Exception('Failed to delete water entry: $e');
+    }
+  }
+
+  // Delete weight entry
+  Future<void> deleteWeightEntry(String entryId) async {
+    try {
+      await _firestore.collection('weight_entries').doc(entryId).delete();
+    } catch (e) {
+      throw Exception('Failed to delete weight entry: $e');
+    }
+  }
+
   // Add meal/calorie tracking entry
   Future<void> addMealEntry({
     required String userEmail,
@@ -495,6 +513,48 @@ class FirestoreService {
       return recipes;
     } catch (e) {
       throw Exception('Failed to get recipes: $e');
+    }
+  }
+
+  // Get all exercises from exerciseDefinitions collection
+  Future<List<Map<String, dynamic>>> getExercises({String? muscleGroup, String? category}) async {
+    try {
+      CollectionReference<Map<String, dynamic>> collectionRef = _firestore.collection('exerciseDefinitions');
+      Query<Map<String, dynamic>> query = collectionRef;
+      
+      // Apply filters if provided
+      if (muscleGroup != null && muscleGroup.isNotEmpty) {
+        query = query.where('muscle_group', isEqualTo: muscleGroup);
+      }
+      
+      if (category != null && category.isNotEmpty) {
+        query = query.where('category', isEqualTo: category);
+      }
+      
+      final querySnapshot = await query.get();
+      
+      return querySnapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to get exercises: $e');
+    }
+  }
+
+  // Get exercise by ID
+  Future<Map<String, dynamic>?> getExerciseById(String exerciseId) async {
+    try {
+      final doc = await _firestore.collection('exerciseDefinitions').doc(exerciseId).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        data['id'] = doc.id;
+        return data;
+      }
+      return null;
+    } catch (e) {
+      throw Exception('Failed to get exercise: $e');
     }
   }
 }

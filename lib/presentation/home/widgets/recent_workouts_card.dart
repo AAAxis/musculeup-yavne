@@ -150,6 +150,40 @@ class _RecentWorkoutsCardState extends State<RecentWorkoutsCard> with WidgetsBin
     return status ?? 'לא ידוע';
   }
 
+  Future<void> _deleteWorkout(String workoutId) async {
+    try {
+      await _firestore.collection('workouts').doc(workoutId).delete();
+      
+      // Remove from local list
+      setState(() {
+        _recentWorkouts.removeWhere((workout) => workout['id'] == workoutId);
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('האימון נמחק בהצלחה'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error deleting workout: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה במחיקת האימון: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        // Reload workouts on error
+        _loadRecentWorkouts();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -172,7 +206,7 @@ class _RecentWorkoutsCardState extends State<RecentWorkoutsCard> with WidgetsBin
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'אימונים אחרונים',
+              'האימונים שלי',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
@@ -180,7 +214,7 @@ class _RecentWorkoutsCardState extends State<RecentWorkoutsCard> with WidgetsBin
             ),
             const SizedBox(height: 4),
             Text(
-              'סיכום 3 האימונים האחרונים שלך.',
+              'אימונים שלך ואימונים מהמאמן.',
               style: TextStyle(
                 fontSize: 14,
                 color: isDark ? Colors.grey[400] : Colors.grey[600],
@@ -226,85 +260,176 @@ class _RecentWorkoutsCardState extends State<RecentWorkoutsCard> with WidgetsBin
               )
             else
               Column(
-                children: _recentWorkouts.map((workout) {
+                children: _recentWorkouts.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final workout = entry.value;
                   final status = _getWorkoutStatus(workout);
                   final isCompleted = status == 'הושלם';
+                  final workoutId = workout['id'] as String?;
+                  final isFromTrainer = workout['from_trainer'] == true;
                   
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: isCompleted ? Colors.green[50] : Colors.blue[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isCompleted ? Colors.green[200]! : Colors.blue[200]!,
+                  return Dismissible(
+                    key: Key(workoutId ?? 'workout_$index'),
+                    direction: DismissDirection.endToStart,
+                    background: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 20),
+                      child: const Icon(
+                        Icons.delete,
+                        color: Colors.white,
+                        size: 28,
                       ),
                     ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      leading: CircleAvatar(
-                        backgroundColor: isCompleted ? Colors.green[100] : Colors.blue[100],
-                        child: Icon(
-                          Icons.fitness_center,
-                          color: isCompleted ? Colors.green[700] : Colors.blue[700],
-                          size: 20,
-                        ),
-                      ),
-                      title: Text(
-                        _getWorkoutTitle(workout),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 4),
-                          Text(
-                            _formatDate(workout['date']),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark ? Colors.grey[500] : Colors.grey[600],
+                    confirmDismiss: (direction) async {
+                      // Show confirmation dialog
+                      return await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('מחיקת אימון'),
+                          content: const Text('האם אתה בטוח שברצונך למחוק את האימון הזה?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('ביטול'),
                             ),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              style: TextButton.styleFrom(foregroundColor: Colors.red),
+                              child: const Text('מחק'),
+                            ),
+                          ],
+                        ),
+                      ) ?? false;
+                    },
+                    onDismissed: (direction) {
+                      if (workoutId != null) {
+                        _deleteWorkout(workoutId);
+                      }
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: isCompleted 
+                            ? Colors.green[50] 
+                            : (isFromTrainer ? Colors.orange[50] : Colors.blue[50]),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isCompleted 
+                              ? Colors.green[200]! 
+                              : (isFromTrainer ? Colors.orange[200]! : Colors.blue[200]!),
+                        ),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        leading: CircleAvatar(
+                          backgroundColor: isCompleted 
+                              ? Colors.green[100] 
+                              : (isFromTrainer ? Colors.orange[100] : Colors.blue[100]),
+                          child: Icon(
+                            Icons.fitness_center,
+                            color: isCompleted ? Colors.green[700] : Colors.blue[700],
+                            size: 20,
                           ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
+                        ),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _getWorkoutTitle(workout),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            if (isFromTrainer)
                               Container(
+                                margin: const EdgeInsets.only(right: 8),
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
+                                  horizontal: 6,
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: isCompleted ? Colors.green[200] : Colors.blue[200],
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.orange[200],
+                                  borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: Text(
-                                  status,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: isCompleted ? Colors.green[900] : Colors.blue[900],
-                                  ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.person,
+                                      size: 12,
+                                      color: Colors.orange[900],
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      'מאמן',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.orange[900],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              if (workout['exercises'] != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 8),
+                          ],
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text(
+                              _formatDate(workout['date']),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? Colors.grey[500] : Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isCompleted ? Colors.green[200] : Colors.blue[200],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                   child: Text(
-                                    ' • ${(workout['exercises'] as List).length} תרגילים',
+                                    status,
                                     style: TextStyle(
                                       fontSize: 11,
-                                      color: isDark ? Colors.grey[500] : Colors.grey[600],
+                                      fontWeight: FontWeight.w600,
+                                      color: isCompleted ? Colors.green[900] : Colors.blue[900],
                                     ),
                                   ),
                                 ),
-                            ],
-                          ),
-                        ],
+                                if (workout['exercises'] != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Text(
+                                      ' • ${(workout['exercises'] as List).length} תרגילים',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: isDark ? Colors.grey[500] : Colors.grey[600],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );

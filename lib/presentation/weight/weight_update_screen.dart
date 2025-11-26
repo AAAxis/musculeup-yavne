@@ -87,6 +87,40 @@ class _WeightUpdateScreenState extends State<WeightUpdateScreen> with SingleTick
     }
   }
 
+  Future<void> _deleteWeightEntry(String entryId) async {
+    try {
+      await _firestoreService.deleteWeightEntry(entryId);
+      
+      // Remove from local list
+      setState(() {
+        _weightEntries.removeWhere((entry) => entry['id'] == entryId);
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('רישום המשקל נמחק בהצלחה'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error deleting weight entry: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה במחיקת רישום המשקל: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        // Reload entries on error
+        _loadWeightEntries();
+      }
+    }
+  }
+
   Future<void> _saveWeight() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -532,16 +566,63 @@ class _WeightUpdateScreenState extends State<WeightUpdateScreen> with SingleTick
                       ? Text('${latestWeight.toStringAsFixed(1)} ק"ג')
                       : null,
                   leading: const Icon(Icons.scale, color: Colors.orange),
-                  children: entries.map((entry) {
+                  children: entries.asMap().entries.map((entryMap) {
+                    final index = entryMap.key;
+                    final entry = entryMap.value;
+                    final entryId = entry['id'] as String?;
                     final time = entry['time'] as String? ?? '';
                     final weight = entry['weight']?.toDouble();
-                    return ListTile(
-                      leading: const Icon(Icons.access_time, size: 20),
-                      title: Text(
-                        weight != null ? '${weight.toStringAsFixed(1)} ק"ג' : '—',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                    
+                    return Dismissible(
+                      key: Key(entryId ?? 'weight_$index'),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        margin: const EdgeInsets.only(bottom: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        child: const Icon(
+                          Icons.delete,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                       ),
-                      subtitle: Text(time),
+                      confirmDismiss: (direction) async {
+                        return await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('מחיקת רישום משקל'),
+                            content: const Text('האם אתה בטוח שברצונך למחוק את הרישום הזה?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                child: const Text('ביטול'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(true),
+                                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                child: const Text('מחק'),
+                              ),
+                            ],
+                          ),
+                        ) ?? false;
+                      },
+                      onDismissed: (direction) {
+                        if (entryId != null) {
+                          _deleteWeightEntry(entryId);
+                        }
+                      },
+                      child: ListTile(
+                        leading: const Icon(Icons.access_time, size: 20),
+                        title: Text(
+                          weight != null ? '${weight.toStringAsFixed(1)} ק"ג' : '—',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(time),
+                      ),
                     );
                   }).toList(),
                 ),
