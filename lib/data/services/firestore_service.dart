@@ -18,6 +18,19 @@ class FirestoreService {
     }
   }
 
+  // Get raw user document data (for fields not in UserModel)
+  Future<Map<String, dynamic>?> getUserDocument(String uid) async {
+    try {
+      final doc = await _firestore.collection('users').doc(uid).get();
+      if (doc.exists) {
+        return doc.data();
+      }
+      return null;
+    } catch (e) {
+      throw Exception('Failed to get user document: $e');
+    }
+  }
+
   // Create or update user
   Future<void> setUser(String uid, UserModel user, {bool isNewUser = false}) async {
     try {

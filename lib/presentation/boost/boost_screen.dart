@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:muscleup/presentation/auth/bloc/auth_bloc.dart';
 import 'package:muscleup/data/services/firestore_service.dart';
 import 'package:muscleup/data/models/user_model.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class BoostScreen extends StatefulWidget {
   const BoostScreen({super.key});
@@ -28,13 +30,13 @@ class _BoostScreenState extends State<BoostScreen> {
     try {
       final authState = context.read<AuthBloc>().state;
       if (authState is AuthAuthenticated) {
-        final user = await _firestoreService.getUser(authState.user.uid);
+        final userDoc = await _firestoreService.getUserDocument(authState.user.uid);
         if (mounted) {
           setState(() {
-            // Check if user has booster_unlocked field
-            // For now, we'll check if booster_unlocked is true
-            // This should be added to UserModel if not already present
-            _hasBoosterAccess = false; // Will be updated when UserModel includes booster fields
+            // Check both booster_unlocked and booster_enabled for access
+            final boosterUnlocked = userDoc?['booster_unlocked'] == true;
+            final boosterEnabled = userDoc?['booster_enabled'] == true;
+            _hasBoosterAccess = boosterUnlocked || boosterEnabled;
             _isLoading = false;
           });
         }
@@ -373,6 +375,18 @@ class _BoostScreenState extends State<BoostScreen> {
         },
       );
 
+      // Send email to trainer via API (same as web app)
+      try {
+        await _sendBoosterRequestEmail(
+          coachEmail: coachEmail,
+          userName: user.name,
+          userEmail: user.email,
+        );
+      } catch (emailError) {
+        // Don't fail the request if email fails, just log it
+        print('⚠️ Failed to send booster request email: $emailError');
+      }
+
       setState(() {
         _requestStatus = '✅ הבקשה נשלחה בהצלחה למאמן! הוא יראה אותה בלוח הבקרה.';
         _isSendingRequest = false;
@@ -382,6 +396,46 @@ class _BoostScreenState extends State<BoostScreen> {
         _requestStatus = '❌ אירעה שגיאה בשליחת הבקשה. אנא נסה שוב מאוחר יותר.';
         _isSendingRequest = false;
       });
+    }
+  }
+
+  // Send booster request email via API (same logic as web app)
+  Future<void> _sendBoosterRequestEmail({
+    required String coachEmail,
+    required String userName,
+    required String userEmail,
+  }) async {
+    try {
+      // Use the same API endpoint as web app
+      const apiUrl = 'https://muscle-up-main-green.vercel.app/api/send-booster-email';
+      
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'coachEmail': coachEmail,
+          'userName': userName,
+          'userEmail': userEmail,
+          'title': '🚀 בקשה להצטרפות לתכנית הבוסטר',
+          'message': 'המתאמן/ת $userName מבקש/ת להצטרף לתכנית הבוסטר.',
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        if (result['success'] == true) {
+          print('✅ Booster request email sent successfully to $coachEmail');
+        } else {
+          print('⚠️ Email API returned success=false: ${result['error']}');
+        }
+      } else {
+        print('⚠️ Email API returned status ${response.statusCode}: ${response.body}');
+      }
+    } catch (error) {
+      print('❌ Error sending booster request email: $error');
+      // Don't throw - we don't want to fail the entire request if email fails
     }
   }
 

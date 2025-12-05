@@ -101,32 +101,64 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _navigateToWeightUpdate() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const WeightUpdateScreen(),
-      ),
-    );
+
+  Future<bool> _hasBoosterAccess() async {
+    // Check if user has booster access from Firestore document
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated) return false;
+    
+    try {
+      // Get user document directly from Firestore to check booster access
+      // Check both booster_unlocked and booster_enabled to ensure access
+      final userDoc = await _firestoreService.getUserDocument(authState.user.uid);
+      final boosterUnlocked = userDoc?['booster_unlocked'] == true;
+      final boosterEnabled = userDoc?['booster_enabled'] == true;
+      // User has access if either field is true (for backward compatibility)
+      return boosterUnlocked || boosterEnabled;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<void> _checkBoosterAndNavigate(VoidCallback onSuccess) async {
+    final hasBooster = await _hasBoosterAccess();
+    if (!hasBooster) {
+      _navigateToBoostScreen();
+    } else {
+      onSuccess();
+    }
   }
 
   void _navigateToAddMeal() {
-    // Switch to meals tab (index 2)
-    MainNavigation.switchToTab(2);
+    // AI Meal Tracking - booster feature
+    _checkBoosterAndNavigate(() {
+      // Switch to meals tab (index 1 after removing booster)
+      MainNavigation.switchToTab(1);
+    });
   }
 
   void _navigateToWaterTracking() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const WaterTrackingScreen(),
-      ),
-    );
+    // Booster feature
+    _checkBoosterAndNavigate(() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const WaterTrackingScreen(),
+        ),
+      );
+    });
+  }
+
+  void _navigateToWorkouts() {
+    // Purple box - navigate to Workouts (index 2 after removing booster)
+    // This is a booster feature (AI Building workouts)
+    _checkBoosterAndNavigate(() {
+      MainNavigation.switchToTab(2);
+    });
   }
 
   void _navigateToBoostScreen() {
-    // Navigate to Boost screen (index 1 in main navigation)
-    // We'll use a simple navigation for now
+    // Navigate to Boost screen for subscription/request
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -136,6 +168,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  void _navigateToWeightUpdate() {
+    // AI Building workouts - booster feature
+    _checkBoosterAndNavigate(() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const WeightUpdateScreen(),
+        ),
+      );
+    });
   }
 
   @override
@@ -179,8 +223,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     onWeightUpdateTap: _navigateToWeightUpdate,
                                     onAddMealTap: _navigateToAddMeal,
                                     onWaterDocTap: _navigateToWaterTracking,
-                                    onProgressTrackingTap:
-                                        _navigateToBoostScreen,
+                                    onProgressTrackingTap: _navigateToWorkouts,
                                   ),
                                   const SizedBox(height: 24),
                                   _isLoadingUser
@@ -207,7 +250,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               onWeightUpdateTap: _navigateToWeightUpdate,
                               onAddMealTap: _navigateToAddMeal,
                               onWaterDocTap: _navigateToWaterTracking,
-                              onProgressTrackingTap: _navigateToBoostScreen,
+                              onProgressTrackingTap: _navigateToWorkouts,
                             ),
                             const SizedBox(height: 24),
                             _isLoadingUser

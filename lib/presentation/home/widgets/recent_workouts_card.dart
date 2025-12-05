@@ -435,16 +435,6 @@ class _RecentWorkoutsCardState extends State<RecentWorkoutsCard> with WidgetsBin
                   );
                 }).toList(),
               ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () {
-                  // TODO: Navigate to workout history
-                },
-                child: const Text('צפה בכל היסטוריית האימונים'),
-              ),
-            ),
           ],
         ),
       ),
